@@ -930,16 +930,36 @@ function renderEmpresa(){
   `;
 }
 let logoTmp=null;
-function handleLogo(ev){
-  const file=ev.target.files[0];if(!file)return;
-  if(file.size>2*1024*1024){toast('Imagem muito grande (máx 2MB)');return;}
+// Encolhe a imagem para um tamanho leve antes de salvar na nuvem
+function resizeImage(file,maxW,maxH,cb){
   const reader=new FileReader();
   reader.onload=e=>{
-    logoTmp=e.target.result;
-    document.getElementById('logoPreview').innerHTML=`<img src="${logoTmp}" style="max-width:100%;max-height:100%;object-fit:contain">`;
-    toast('Logo carregado — clique em Salvar dados');
+    const img=new Image();
+    img.onload=()=>{
+      let w=img.width,h=img.height;
+      const ratio=Math.min(maxW/w,maxH/h,1);
+      w=Math.round(w*ratio);h=Math.round(h*ratio);
+      const canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(img,0,0,w,h);
+      // PNG preserva transparência (importante para logo)
+      const isPng=file.type.indexOf('png')>=0;
+      const out=isPng?canvas.toDataURL('image/png'):canvas.toDataURL('image/jpeg',0.85);
+      cb(out);
+    };
+    img.src=e.target.result;
   };
   reader.readAsDataURL(file);
+}
+function handleLogo(ev){
+  const file=ev.target.files[0];if(!file)return;
+  if(file.size>5*1024*1024){toast('Imagem muito grande (máx 5MB)');return;}
+  resizeImage(file,500,500,out=>{
+    logoTmp=out;
+    document.getElementById('logoPreview').innerHTML=`<img src="${logoTmp}" style="max-width:100%;max-height:100%;object-fit:contain">`;
+    toast('Logo carregado — clique em Salvar dados');
+  });
 }
 function removeLogo(){
   logoTmp='';
@@ -952,14 +972,12 @@ function removeLogo(){
 let mascoteTmp=null;
 function handleMascote(ev){
   const file=ev.target.files[0];if(!file)return;
-  if(file.size>2*1024*1024){toast('Imagem muito grande (máx 2MB)');return;}
-  const reader=new FileReader();
-  reader.onload=e=>{
-    mascoteTmp=e.target.result;
+  if(file.size>5*1024*1024){toast('Imagem muito grande (máx 5MB)');return;}
+  resizeImage(file,400,400,out=>{
+    mascoteTmp=out;
     document.getElementById('mascotePreview').innerHTML=`<img src="${mascoteTmp}" style="max-width:100%;max-height:100%;object-fit:cover">`;
     toast('Mascote carregado — clique em Salvar dados');
-  };
-  reader.readAsDataURL(file);
+  });
 }
 function removeMascote(){
   mascoteTmp='';
@@ -1036,9 +1054,13 @@ async function saveEmpresa(){
   CONFIG.empresa.endereco=document.getElementById('cfg_end').value;
   if(logoTmp!==null)CONFIG.empresa.logo=logoTmp;
   if(mascoteTmp!==null)CONFIG.empresa.mascote=mascoteTmp;
-  await dbPut('config',CONFIG);
-  logoTmp=null;mascoteTmp=null;
-  toast('Dados da empresa salvos');
+  try{
+    await dbPut('config',CONFIG);
+    logoTmp=null;mascoteTmp=null;
+    toast('Dados da empresa salvos');
+  }catch(err){
+    toast('Erro ao salvar na nuvem — tente uma imagem menor');
+  }
 }
 
 /* ---------- Gestão de usuários e senha ---------- */
