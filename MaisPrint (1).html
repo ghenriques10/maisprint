@@ -1,0 +1,3177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mais Print — Sistema de Gestão</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+/* ============================================================
+   MAIS PRINT — BLOCO 1 (FUNDAÇÃO)
+   Tokens de tema: claro e escuro
+   ============================================================ */
+:root{
+  --brand:#6600FF;        /* roxo Mais Print */
+  --brand-soft:#8838FF;
+  --brand-ink:#5200CC;
+  --radius:14px;
+  --radius-sm:9px;
+  --shadow:0 1px 3px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.05);
+  --shadow-lg:0 12px 40px rgba(0,0,0,.12);
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --trans:.18s cubic-bezier(.4,0,.2,1);
+}
+/* ----- TEMA CLARO ----- */
+[data-theme="light"]{
+  --bg:#F6F7F9;
+  --bg-grad:linear-gradient(180deg,#F8F9FB 0%,#F1F3F6 100%);
+  --surface:#FFFFFF;
+  --surface-2:#FAFBFC;
+  --surface-3:#F3F5F7;
+  --border:#E7EAEE;
+  --border-strong:#D8DCE2;
+  --text:#1A1D23;
+  --text-2:#5A6472;
+  --text-3:#8A93A1;
+  --nav-bg:rgba(255,255,255,.85);
+  --shadow-color:rgba(20,25,35,.06);
+}
+/* ----- TEMA ESCURO ----- */
+[data-theme="dark"]{
+  --brand:#8B5CFF;        /* roxo vibrante para fundo escuro */
+  --brand-soft:#A87CFF;
+  --brand-ink:#A87CFF;
+  --bg:#0E1116;
+  --bg-grad:linear-gradient(180deg,#11151C 0%,#0C0F14 100%);
+  --surface:#171C24;
+  --surface-2:#1C222B;
+  --surface-3:#222934;
+  --border:#283039;
+  --border-strong:#333C47;
+  --text:#EBEEF2;
+  --text-2:#9AA4B2;
+  --text-3:#6B7686;
+  --nav-bg:rgba(20,25,32,.85);
+  --shadow-color:rgba(0,0,0,.4);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font);
+  background:var(--bg-grad);
+  color:var(--text);
+  font-size:15px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  transition:background var(--trans),color var(--trans);
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font-family:inherit;font-size:14px}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:6px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ============================================================
+   TELA DE LOGIN
+   ============================================================ */
+#loginScreen{
+  position:fixed;inset:0;z-index:100;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--bg-grad);padding:20px;
+}
+.login-card{
+  width:100%;max-width:400px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow-lg);
+  padding:40px 36px;
+  text-align:center;
+  animation:rise .5s cubic-bezier(.16,1,.3,1);
+}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.login-logo{
+  width:62px;height:62px;margin:0 auto 18px;
+  border-radius:16px;
+  background:linear-gradient(135deg,var(--brand),var(--brand-soft));
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 8px 20px rgba(102,0,255,.35);
+}
+.login-logo svg{width:32px;height:32px;stroke:#fff}
+.login-card h1{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-bottom:4px}
+.login-card .sub{color:var(--text-2);font-size:13.5px;margin-bottom:28px}
+.field{text-align:left;margin-bottom:16px}
+.field label{display:block;font-size:12.5px;font-weight:600;color:var(--text-2);margin-bottom:6px}
+.field input{
+  width:100%;padding:11px 13px;
+  background:var(--surface-2);
+  border:1px solid var(--border-strong);
+  border-radius:var(--radius-sm);
+  color:var(--text);outline:none;
+  transition:border var(--trans),box-shadow var(--trans);
+}
+.field input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(102,0,255,.15)}
+.btn-primary{
+  width:100%;padding:12px;margin-top:6px;
+  background:linear-gradient(135deg,var(--brand),var(--brand-soft));
+  color:#fff;font-weight:600;font-size:15px;
+  border-radius:var(--radius-sm);
+  transition:transform var(--trans),box-shadow var(--trans);
+  box-shadow:0 4px 14px rgba(102,0,255,.3);
+}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(102,0,255,.4)}
+.btn-primary:active{transform:translateY(0)}
+.login-hint{margin-top:18px;font-size:12px;color:var(--text-3)}
+.login-err{color:#E5484D;font-size:12.5px;margin-top:10px;min-height:16px}
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+#app{display:none;min-height:100vh;flex-direction:column}
+.topbar{
+  position:sticky;top:0;z-index:40;
+  background:var(--nav-bg);
+  backdrop-filter:saturate(180%) blur(16px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:18px;
+  padding:0 22px;height:60px;
+}
+.brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:16px;letter-spacing:-.02em;white-space:nowrap}
+.brand-mark{
+  width:32px;height:32px;border-radius:9px;
+  background:linear-gradient(135deg,var(--brand),var(--brand-soft));
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  box-shadow:0 3px 8px rgba(102,0,255,.3);
+}
+.brand-mark svg{width:18px;height:18px;stroke:#fff}
+.nav{display:flex;gap:2px;margin-left:8px;overflow-x:auto;flex:1}
+.nav::-webkit-scrollbar{height:0}
+.nav-item{
+  display:flex;align-items:center;gap:7px;
+  padding:8px 13px;border-radius:9px;
+  color:var(--text-2);font-size:13.5px;font-weight:500;
+  white-space:nowrap;transition:all var(--trans);position:relative;
+}
+.nav-item svg{width:16px;height:16px;stroke:currentColor;flex-shrink:0}
+.nav-item:hover{background:var(--surface-3);color:var(--text)}
+.nav-item.active{background:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(102,0,255,.3)}
+.topbar-right{display:flex;align-items:center;gap:8px;margin-left:auto}
+.icon-btn{
+  width:38px;height:38px;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text-2);border:1px solid var(--border);
+  background:var(--surface);transition:all var(--trans);
+}
+.icon-btn svg{width:18px;height:18px;stroke:currentColor}
+.icon-btn:hover{color:var(--text);border-color:var(--border-strong);background:var(--surface-3)}
+
+/* ============================================================
+   ÁREA DE CONTEÚDO
+   ============================================================ */
+.main{flex:1;padding:26px 22px;max-width:1180px;width:100%;margin:0 auto}
+.page{display:none;animation:fade .25s ease}
+.page.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.page-head{margin-bottom:22px}
+.page-head h2{font-size:24px;font-weight:700;letter-spacing:-.025em;display:flex;align-items:center;gap:10px}
+.page-head .desc{color:var(--text-2);font-size:14px;margin-top:3px}
+
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  padding:22px;margin-bottom:18px;
+}
+.card-title{font-size:16px;font-weight:650;margin-bottom:4px;display:flex;align-items:center;gap:9px}
+.card-title svg{width:18px;height:18px;stroke:var(--brand)}
+.card-sub{color:var(--text-2);font-size:13px;margin-bottom:18px}
+
+/* Placeholder de "em breve" para módulos futuros */
+.soon{
+  text-align:center;padding:60px 20px;color:var(--text-3);
+}
+.soon svg{width:46px;height:46px;stroke:var(--text-3);margin-bottom:14px}
+.soon h3{font-size:17px;font-weight:600;color:var(--text-2);margin-bottom:6px}
+.soon p{font-size:13.5px;max-width:380px;margin:0 auto}
+.soon .tag{
+  display:inline-block;margin-top:16px;padding:5px 12px;
+  background:rgba(102,0,255,.12);color:var(--brand-ink);
+  border-radius:20px;font-size:12px;font-weight:600;
+}
+[data-theme="dark"] .soon .tag{color:var(--brand-soft)}
+
+/* ============================================================
+   FORMULÁRIOS (Configurações)
+   ============================================================ */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.form-row{display:flex;flex-direction:column;gap:6px}
+.form-row label{font-size:12.5px;font-weight:600;color:var(--text-2)}
+.form-row .help{font-size:11.5px;color:var(--text-3);font-weight:400}
+.inp{
+  padding:10px 12px;
+  background:var(--surface-2);
+  border:1px solid var(--border-strong);
+  border-radius:var(--radius-sm);
+  color:var(--text);outline:none;width:100%;
+  transition:border var(--trans),box-shadow var(--trans);
+}
+.inp:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(102,0,255,.15)}
+.inp-prefix{position:relative}
+.inp-prefix span{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:14px;pointer-events:none}
+.inp-prefix .inp{padding-left:30px}
+
+.calc-box{
+  background:var(--surface-3);
+  border:1px dashed var(--border-strong);
+  border-radius:var(--radius-sm);
+  padding:16px;margin-top:4px;
+}
+.calc-box .label{font-size:12px;color:var(--text-2);font-weight:500}
+.calc-box .val{font-size:26px;font-weight:700;color:var(--brand);letter-spacing:-.02em;margin-top:2px}
+.calc-box .note{font-size:11.5px;color:var(--text-3);margin-top:4px}
+
+.section-divider{height:1px;background:var(--border);margin:22px 0}
+.btn-save{
+  background:linear-gradient(135deg,var(--brand),var(--brand-soft));
+  color:#fff;font-weight:600;padding:11px 22px;
+  border-radius:var(--radius-sm);font-size:14px;
+  transition:transform var(--trans),box-shadow var(--trans);
+  box-shadow:0 4px 14px rgba(102,0,255,.28);
+}
+.btn-save:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(102,0,255,.38)}
+
+/* Sub-abas dentro de Configurações */
+.subtabs{display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:0}
+.subtab{
+  padding:9px 15px;border-radius:9px 9px 0 0;
+  color:var(--text-2);font-size:13.5px;font-weight:500;
+  border-bottom:2px solid transparent;margin-bottom:-1px;transition:all var(--trans);
+}
+.subtab:hover{color:var(--text);background:var(--surface-3)}
+.subtab.active{color:var(--brand);border-bottom-color:var(--brand);font-weight:600}
+.subpage{display:none}
+.subpage.active{display:block;animation:fade .2s ease}
+
+/* Toast de confirmação */
+#toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--text);color:var(--bg);
+  padding:12px 22px;border-radius:10px;font-size:14px;font-weight:500;
+  box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;
+  transition:all .3s cubic-bezier(.16,1,.3,1);z-index:200;
+  display:flex;align-items:center;gap:9px;
+}
+#toast svg{width:17px;height:17px;stroke:var(--brand)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ============================================================
+   COMPONENTES DE CADASTRO (Bloco 2): tabela, modal, busca
+   ============================================================ */
+.page-head-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.btn-add{
+  background:linear-gradient(135deg,var(--brand),var(--brand-soft));
+  color:#fff;font-weight:600;padding:10px 18px;border-radius:var(--radius-sm);
+  font-size:14px;display:flex;align-items:center;gap:7px;white-space:nowrap;
+  transition:transform var(--trans),box-shadow var(--trans);box-shadow:0 4px 14px rgba(102,0,255,.28);
+}
+.btn-add:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(102,0,255,.38)}
+.btn-add svg{width:17px;height:17px;stroke:#fff}
+
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.search-box{position:relative;flex:1;min-width:200px}
+.search-box svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;stroke:var(--text-3)}
+.search-box input{width:100%;padding:10px 12px 10px 36px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-sm);color:var(--text);outline:none;transition:border var(--trans)}
+.search-box input:focus{border-color:var(--brand)}
+
+.tbl-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.tbl-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead th{
+  text-align:left;font-size:11.5px;font-weight:650;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--text-3);padding:13px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);white-space:nowrap;
+}
+tbody td{padding:13px 16px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr{transition:background var(--trans)}
+tbody tr:hover{background:var(--surface-2)}
+.t-main{font-weight:600;color:var(--text)}
+.t-sub{font-size:12.5px;color:var(--text-3);margin-top:1px}
+.t-right{text-align:right}
+.t-actions{display:flex;gap:6px;justify-content:flex-end}
+.act-btn{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text-2);border:1px solid var(--border);background:var(--surface);transition:all var(--trans)}
+.act-btn svg{width:15px;height:15px;stroke:currentColor}
+.act-btn:hover{background:var(--surface-3);color:var(--text)}
+.act-btn.danger:hover{background:rgba(229,72,77,.1);color:#E5484D;border-color:rgba(229,72,77,.3)}
+
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--surface-3);color:var(--text-2)}
+.badge.brand{background:rgba(102,0,255,.12);color:var(--brand-ink)}
+[data-theme="dark"] .badge.brand{color:var(--brand-soft)}
+.badge.green{background:rgba(34,160,90,.14);color:#1A8A4E}
+[data-theme="dark"] .badge.green{color:#4ADE80}
+.badge.blue{background:rgba(40,110,220,.13);color:#2563C9}
+[data-theme="dark"] .badge.blue{color:#7AB0FF}
+
+.empty-state{text-align:center;padding:54px 20px;color:var(--text-3)}
+.empty-state svg{width:42px;height:42px;stroke:var(--text-3);margin-bottom:12px;opacity:.7}
+.empty-state h3{font-size:15.5px;font-weight:600;color:var(--text-2);margin-bottom:5px}
+.empty-state p{font-size:13px;max-width:340px;margin:0 auto}
+
+/* Modal (janela de cadastro) */
+.modal-bg{
+  position:fixed;inset:0;z-index:80;background:rgba(10,12,16,.55);
+  backdrop-filter:blur(3px);display:flex;align-items:flex-start;justify-content:center;
+  padding:40px 16px;overflow-y:auto;opacity:0;pointer-events:none;transition:opacity .2s ease;
+}
+.modal-bg.show{opacity:1;pointer-events:auto}
+.modal{
+  width:100%;max-width:560px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:0;
+  transform:translateY(12px);transition:transform .25s cubic-bezier(.16,1,.3,1);margin:auto 0;
+}
+.modal-bg.show .modal{transform:translateY(0)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border)}
+.modal-head h3{font-size:17px;font-weight:650}
+.modal-head .close{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text-2);transition:all var(--trans)}
+.modal-head .close:hover{background:var(--surface-3);color:var(--text)}
+.modal-head .close svg{width:18px;height:18px;stroke:currentColor}
+.modal-body{padding:22px 24px;max-height:64vh;overflow-y:auto}
+.modal-foot{display:flex;gap:10px;justify-content:flex-end;padding:16px 24px;border-top:1px solid var(--border)}
+.btn-ghost{padding:10px 18px;border-radius:var(--radius-sm);font-weight:600;font-size:14px;color:var(--text-2);border:1px solid var(--border-strong);background:var(--surface);transition:all var(--trans)}
+.btn-ghost:hover{background:var(--surface-3);color:var(--text)}
+.modal-section-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin:22px 0 12px}
+.modal-section-label:first-child{margin-top:0}
+.radio-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.radio-opt{border:1.5px solid var(--border-strong);border-radius:var(--radius-sm);padding:11px 13px;cursor:pointer;transition:all var(--trans);background:var(--surface-2)}
+.radio-opt:hover{border-color:var(--brand-soft)}
+.radio-opt.sel{border-color:var(--brand);background:rgba(102,0,255,.07)}
+.radio-opt .ro-title{font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:7px}
+.radio-opt .ro-desc{font-size:11.5px;color:var(--text-3);margin-top:3px}
+.kpi-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.kpi{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:15px 17px;box-shadow:var(--shadow)}
+.kpi .k-label{font-size:12px;color:var(--text-2);font-weight:500;display:flex;align-items:center;gap:6px}
+.kpi .k-label svg{width:14px;height:14px;stroke:var(--text-3)}
+.kpi .k-val{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:4px}
+
+/* ============================================================
+   PRECIFICAÇÃO (Bloco 3)
+   ============================================================ */
+.mode-switch{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.mode-card{
+  flex:1;min-width:220px;border:1.5px solid var(--border-strong);border-radius:var(--radius);
+  padding:18px;cursor:pointer;background:var(--surface);transition:all var(--trans);text-align:left;
+}
+.mode-card:hover{border-color:var(--brand-soft);transform:translateY(-1px)}
+.mode-card.sel{border-color:var(--brand);background:rgba(102,0,255,.05);box-shadow:0 4px 16px rgba(102,0,255,.12)}
+.mode-card .mc-icon{width:38px;height:38px;border-radius:10px;background:rgba(102,0,255,.1);display:flex;align-items:center;justify-content:center;margin-bottom:11px}
+.mode-card .mc-icon svg{width:20px;height:20px;stroke:var(--brand)}
+.mode-card h4{font-size:15.5px;font-weight:650;margin-bottom:4px}
+.mode-card p{font-size:12.5px;color:var(--text-2);line-height:1.45}
+
+.price-layout{display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start}
+.price-summary{position:sticky;top:78px}
+.sum-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.sum-head{padding:16px 18px;border-bottom:1px solid var(--border);background:var(--surface-2)}
+.sum-head h4{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3)}
+.sum-body{padding:16px 18px}
+.sum-line{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;font-size:13.5px}
+.sum-line .sl-label{color:var(--text-2)}
+.sum-line .sl-val{font-weight:600;font-variant-numeric:tabular-nums}
+.sum-divider{height:1px;background:var(--border);margin:8px 0}
+.sum-total{display:flex;justify-content:space-between;align-items:baseline;padding-top:10px}
+.sum-total .st-label{font-size:13px;color:var(--text-2);font-weight:600}
+.sum-total .st-val{font-size:27px;font-weight:750;color:var(--brand);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.sum-margin{margin-top:6px;font-size:12px;color:var(--text-3);text-align:right}
+
+.item-add-row{display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap}
+.item-add-row .form-row{flex:1;min-width:130px}
+.btn-mini{background:var(--brand);color:#fff;font-weight:600;padding:10px 15px;border-radius:var(--radius-sm);font-size:13.5px;white-space:nowrap;transition:all var(--trans)}
+.btn-mini:hover{background:var(--brand-soft)}
+.btn-mini svg{width:15px;height:15px;stroke:#fff;vertical-align:-2px}
+
+.sel-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
+.sel-item:last-child{border-bottom:none}
+.sel-item .si-info{flex:1;min-width:0}
+.sel-item .si-name{font-weight:600;font-size:14px}
+.sel-item .si-detail{font-size:12px;color:var(--text-3);margin-top:1px}
+.sel-item .si-val{font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sel-item .si-del{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:all var(--trans);flex-shrink:0}
+.sel-item .si-del:hover{background:rgba(229,72,77,.1);color:#E5484D}
+.sel-item .si-del svg{width:14px;height:14px;stroke:currentColor}
+.stock-warn{font-size:11.5px;color:#E5484D;margin-top:2px}
+
+.price-step{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+.price-step h3{font-size:15px;font-weight:650;margin-bottom:3px;display:flex;align-items:center;gap:9px}
+.price-step .ps-num{width:24px;height:24px;border-radius:7px;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.price-step .ps-sub{font-size:12.5px;color:var(--text-3);margin:0 0 16px 33px}
+
+@media(max-width:880px){.price-layout{grid-template-columns:1fr}.price-summary{position:static}}
+
+/* ============================================================
+   DASHBOARD E PEDIDOS (Bloco 4)
+   ============================================================ */
+.dash-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:22px}
+.dash-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.dash-card .dc-top{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-2);font-weight:500}
+.dash-card .dc-top svg{width:15px;height:15px}
+.dash-card .dc-num{font-size:30px;font-weight:750;letter-spacing:-.03em;margin-top:5px}
+.dash-card.late{border-color:rgba(229,72,77,.35)}
+.dash-card.late .dc-num{color:#E5484D}
+.dash-card.today .dc-num{color:#D97706}
+.dash-card.ready .dc-num{color:#1A8A4E}
+.dash-card.money{background:linear-gradient(135deg,var(--brand),var(--brand-soft));border:none}
+.dash-card.money .dc-top,.dash-card.money .dc-num{color:#fff}
+.dash-card.money .dc-top svg{stroke:#fff}
+
+.filter-pills{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:16px}
+.pill{padding:7px 14px;border-radius:20px;font-size:13px;font-weight:550;color:var(--text-2);background:var(--surface);border:1px solid var(--border-strong);transition:all var(--trans)}
+.pill:hover{background:var(--surface-3)}
+.pill.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+
+.status-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font-size:12px;font-weight:600}
+.st-orcamento{background:var(--surface-3);color:var(--text-2)}
+.st-design{background:rgba(147,51,234,.14);color:#7E22CE}
+[data-theme="dark"] .st-design{color:#C084FC}
+.st-producao{background:rgba(217,119,6,.14);color:#B45309}
+[data-theme="dark"] .st-producao{color:#FB923C}
+.st-pronto{background:rgba(40,110,220,.14);color:#2563C9}
+[data-theme="dark"] .st-pronto{color:#7AB0FF}
+.st-entregue{background:rgba(34,160,90,.14);color:#1A8A4E}
+[data-theme="dark"] .st-entregue{color:#4ADE80}
+.st-pago{background:rgba(102,0,255,.12);color:var(--brand-ink)}
+
+.pay-tag{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:12px}
+.pay-sim{background:rgba(34,160,90,.14);color:#1A8A4E}
+.pay-nao{background:rgba(229,72,77,.12);color:#E5484D}
+.pay-parcial{background:rgba(217,119,6,.14);color:#B45309}
+
+.due-soon{color:#D97706;font-weight:600}
+.due-late{color:#E5484D;font-weight:600}
+
+/* ============================================================
+   FINANCEIRO (Bloco 5)
+   ============================================================ */
+.fin-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.fin-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.fin-card .fc-label{font-size:12.5px;color:var(--text-2);font-weight:500}
+.fin-card .fc-val{font-size:24px;font-weight:750;letter-spacing:-.02em;margin-top:4px;font-variant-numeric:tabular-nums}
+.fin-card.rec .fc-val{color:#1A8A4E}
+.fin-card.desp .fc-val{color:#E5484D}
+.fin-card.saldo .fc-val{color:var(--brand)}
+.tx-type{display:inline-flex;width:30px;height:30px;border-radius:8px;align-items:center;justify-content:center;flex-shrink:0}
+.tx-type svg{width:15px;height:15px}
+.tx-rec{background:rgba(34,160,90,.14)}.tx-rec svg{stroke:#1A8A4E}
+.tx-desp{background:rgba(229,72,77,.12)}.tx-desp svg{stroke:#E5484D}
+.val-rec{color:#1A8A4E;font-weight:650}
+.val-desp{color:#E5484D;font-weight:650}
+.fin-layout{display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start}
+@media(max-width:880px){.fin-layout{grid-template-columns:1fr}}
+.tag-auto{font-size:10.5px;background:rgba(102,0,255,.12);color:var(--brand-ink);padding:2px 7px;border-radius:10px;font-weight:600;margin-left:6px}
+[data-theme="dark"] .tag-auto{color:var(--brand-soft)}
+
+/* ============================================================
+   PDF DO ORÇAMENTO (impressão)
+   ============================================================ */
+#pdfArea{display:none}
+@media print{
+  body *{visibility:hidden}
+  #pdfArea,#pdfArea *{visibility:visible}
+  #pdfArea{display:block;position:absolute;left:0;top:0;width:100%}
+  @page{size:A4;margin:0}
+}
+
+/* Responsivo */
+@media(max-width:720px){
+  .brand span{display:none}
+  .nav-item span{display:none}
+  .nav-item{padding:9px}
+  .main{padding:18px 14px}
+  .page-head h2{font-size:20px}
+}
+</style>
+</head>
+<body data-theme="light">
+
+<!-- ===================== LOGIN ===================== -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/>
+      </svg>
+    </div>
+    <h1>Mais Print</h1>
+    <p class="sub">Sistema de gestão da gráfica</p>
+    <div class="field">
+      <label>Usuário</label>
+      <input type="text" id="loginUser" placeholder="admin" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <input type="password" id="loginPass" placeholder="••••••" autocomplete="off">
+    </div>
+    <button class="btn-primary" onclick="doLogin()">Entrar</button>
+    <div class="login-err" id="loginErr"></div>
+    <p class="login-hint">Acesso inicial: <b>admin</b> / <b>1234</b></p>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
+      </div>
+      <span>Mais Print</span>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="topbar-right">
+      <button class="icon-btn" onclick="toggleTheme()" id="themeBtn" title="Alternar tema">
+        <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+      </button>
+      <button class="icon-btn" onclick="doLogout()" title="Sair">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="main" id="main"></div>
+</div>
+
+<!-- Toast -->
+<div id="toast"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span id="toastMsg"></span></div>
+
+<!-- Modal reutilizável (janelas de cadastro) -->
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<!-- Área de impressão do PDF -->
+<div id="pdfArea"></div>
+
+<script>
+/* ============================================================
+   MAIS PRINT — MOTOR (Bloco 1)
+   ============================================================ */
+
+/* ---------- Ícones SVG reutilizáveis ---------- */
+const ICON = {
+  dashboard:'<path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/>',
+  pricing:'<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="12" y2="11"/><line x1="8" y1="15" x2="14" y2="15"/>',
+  orders:'<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/>',
+  clients:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  materials:'<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+  equip:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  finance:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  reports:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+  settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  box:'<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>',
+  money:'<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>'
+};
+
+/* ---------- Definição das abas ---------- */
+const TABS = [
+  {id:'dashboard',label:'Dashboard',icon:'dashboard'},
+  {id:'pricing',label:'Precificação',icon:'pricing'},
+  {id:'orders',label:'Pedidos',icon:'orders'},
+  {id:'clients',label:'Clientes',icon:'clients'},
+  {id:'materials',label:'Materiais',icon:'materials'},
+  {id:'equip',label:'Equipamentos',icon:'equip'},
+  {id:'finance',label:'Financeiro',icon:'finance'},
+  {id:'reports',label:'Relatórios',icon:'reports'},
+  {id:'settings',label:'Configurações',icon:'settings'},
+];
+
+/* ============================================================
+   BANCO DE DADOS NA NUVEM (Supabase)
+   Guarda tudo online, sincronizado entre dispositivos.
+   As funções dbPut/dbGet/dbAll/dbDel mantêm os mesmos nomes,
+   então o resto do sistema funciona sem alteração.
+   ============================================================ */
+const SUPABASE_URL='https://zawoscggkoymublgqfnt.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inphd29zY2dna295bXVibGdxZm50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExOTE0ODIsImV4cCI6MjA5Njc2NzQ4Mn0.G7R-rIQErCKyTyeDzxXD7gp5KkHF7HnWy4OVgtDUH5M';
+const SB_HEADERS={
+  'apikey':SUPABASE_KEY,
+  'Authorization':'Bearer '+SUPABASE_KEY,
+  'Content-Type':'application/json'
+};
+const REST=SUPABASE_URL+'/rest/v1/dados';
+let db='supabase'; // mantém compatibilidade com checagens "if(!db)"
+
+// Cache local em memória para velocidade (espelho do que está na nuvem)
+const _cache={};
+
+function openDB(){
+  // Carrega todos os dados da nuvem uma vez para o cache
+  return fetch(REST+'?select=*',{headers:SB_HEADERS})
+    .then(r=>{ if(!r.ok) throw new Error('Falha ao conectar ('+r.status+')'); return r.json(); })
+    .then(rows=>{
+      rows.forEach(row=>{
+        if(!_cache[row.tipo])_cache[row.tipo]={};
+        _cache[row.tipo][row.id]=row.conteudo;
+      });
+      return true;
+    });
+}
+
+async function dbPut(store,obj){
+  if(!obj.id)obj.id=uid();
+  // grava na nuvem (upsert)
+  const body=[{tipo:store,id:String(obj.id),conteudo:obj,atualizado_em:new Date().toISOString()}];
+  const r=await fetch(REST,{
+    method:'POST',
+    headers:{...SB_HEADERS,'Prefer':'resolution=merge-duplicates'},
+    body:JSON.stringify(body)
+  });
+  if(!r.ok){const t=await r.text();throw new Error('Erro ao salvar: '+t);}
+  // atualiza cache
+  if(!_cache[store])_cache[store]={};
+  _cache[store][String(obj.id)]=obj;
+  return obj;
+}
+
+async function dbGet(store,id){
+  // tenta do cache primeiro
+  if(_cache[store]&&_cache[store][String(id)]!==undefined)return _cache[store][String(id)];
+  // busca na nuvem
+  const r=await fetch(REST+`?tipo=eq.${encodeURIComponent(store)}&id=eq.${encodeURIComponent(id)}&select=conteudo`,{headers:SB_HEADERS});
+  if(!r.ok)return undefined;
+  const rows=await r.json();
+  if(rows.length===0)return undefined;
+  if(!_cache[store])_cache[store]={};
+  _cache[store][String(id)]=rows[0].conteudo;
+  return rows[0].conteudo;
+}
+
+async function dbAll(store){
+  // se já temos no cache, retorna do cache
+  if(_cache[store])return Object.values(_cache[store]);
+  const r=await fetch(REST+`?tipo=eq.${encodeURIComponent(store)}&select=id,conteudo`,{headers:SB_HEADERS});
+  if(!r.ok)return [];
+  const rows=await r.json();
+  _cache[store]={};
+  rows.forEach(row=>{_cache[store][row.id]=row.conteudo;});
+  return Object.values(_cache[store]);
+}
+
+async function dbDel(store,id){
+  const r=await fetch(REST+`?tipo=eq.${encodeURIComponent(store)}&id=eq.${encodeURIComponent(id)}`,{
+    method:'DELETE',headers:SB_HEADERS
+  });
+  if(_cache[store])delete _cache[store][String(id)];
+  return r.ok;
+}
+
+/* ---------- Configurações padrão ---------- */
+const DEFAULT_CONFIG={
+  id:'main',
+  empresa:{nome:'Mais Print',cnpj:'',endereco:'',whatsapp:'',pix:''},
+  operacao:{
+    proLabore:3000,      // quanto quer ganhar por mês (R$)
+    diasUteis:22,        // dias trabalhados no mês
+    horasDia:8,          // horas por dia
+    margemPadrao:50,     // margem de lucro padrão (%)
+  },
+  despesasFixas:[
+    {nome:'Energia elétrica',valor:200},
+    {nome:'Internet',valor:100},
+  ],
+  bancos:[{id:'caixa',nome:'Dinheiro / Caixa'}],
+  catReceita:['Venda de pedido','Outras receitas'],
+  catDespesa:['Compra de material','Despesa fixa','Terceirizado','Outras despesas']
+};
+
+/* ============================================================
+   TEMA CLARO / ESCURO
+   ============================================================ */
+function applyTheme(t){
+  document.body.setAttribute('data-theme',t);
+  localStorage.setItem('mp_theme',t);
+  const moon=document.getElementById('iconMoon');
+  if(t==='dark'){
+    moon.innerHTML='<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }else{
+    moon.innerHTML='<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>';
+  }
+}
+function toggleTheme(){
+  const cur=document.body.getAttribute('data-theme');
+  applyTheme(cur==='dark'?'light':'dark');
+}
+
+/* ============================================================
+   LOGIN (simples por enquanto)
+   ============================================================ */
+async function doLogin(){
+  const u=document.getElementById('loginUser').value.trim().toLowerCase();
+  const p=document.getElementById('loginPass').value;
+  const err=document.getElementById('loginErr');
+  // Garante banco aberto
+  if(!db)await openDB();
+  let users=await dbAll('users');
+  // Primeiro acesso: cria admin padrão
+  if(users.length===0){
+    await dbPut('users',{id:'admin',usuario:'admin',senha:'1234',nome:'Administrador',criadoEm:Date.now()});
+    users=await dbAll('users');
+  }
+  const found=users.find(x=>x.usuario===u && x.senha===p);
+  if(found){
+    sessionStorage.setItem('mp_logged','1');
+    sessionStorage.setItem('mp_user',found.id);
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('app').style.display='flex';
+    err.textContent='';
+  }else{
+    err.textContent='Usuário ou senha incorretos.';
+  }
+}
+function doLogout(){
+  sessionStorage.removeItem('mp_logged');
+  sessionStorage.removeItem('mp_user');
+  document.getElementById('app').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('loginPass').value='';
+}
+// Permite logar com Enter
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&document.getElementById('loginScreen').style.display!=='none'){doLogin();}
+});
+
+/* ============================================================
+   NAVEGAÇÃO
+   ============================================================ */
+let currentTab='dashboard';
+function buildNav(){
+  const nav=document.getElementById('nav');
+  nav.innerHTML=TABS.map(t=>`
+    <button class="nav-item ${t.id===currentTab?'active':''}" data-tab="${t.id}" onclick="goTab('${t.id}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[t.icon]}</svg>
+      <span>${t.label}</span>
+    </button>`).join('');
+}
+function goTab(id){
+  currentTab=id;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.tab===id));
+  renderPage(id);
+}
+
+/* ============================================================
+   RENDERIZAÇÃO DAS PÁGINAS
+   ============================================================ */
+function renderPage(id){
+  const main=document.getElementById('main');
+  if(id==='settings'){ main.innerHTML=renderSettings(); bindSettings(); return; }
+  if(id==='clients'){ renderClientsPage(main); return; }
+  if(id==='materials'){ renderMaterialsPage(main); return; }
+  if(id==='equip'){ renderEquipPage(main); return; }
+  if(id==='pricing'){ renderPricingPage(main); return; }
+  if(id==='dashboard'){ renderDashboardPage(main); return; }
+  if(id==='orders'){ renderOrdersPage(main); return; }
+  if(id==='finance'){ renderFinancePage(main); return; }
+  if(id==='reports'){ renderReportsPage(main); return; }
+  // Demais módulos: placeholder "em construção" (virão nos próximos blocos)
+  const tab=TABS.find(t=>t.id===id);
+  const blocos={
+    dashboard:'Bloco 4', pricing:'Bloco 3', orders:'Bloco 4',
+    finance:'Bloco 5', reports:'Bloco 5'
+  };
+  main.innerHTML=`
+    <div class="page-head">
+      <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[tab.icon]}</svg> ${tab.label}</h2>
+    </div>
+    <div class="card">
+      <div class="soon">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON[tab.icon]}</svg>
+        <h3>Módulo em construção</h3>
+        <p>Esta parte do sistema será montada em seguida. A estrutura e o visual já estão prontos — falta ligar as funções.</p>
+        <div class="tag">Chega no ${blocos[id]||'próximo bloco'}</div>
+      </div>
+    </div>`;
+}
+
+/* ============================================================
+   PÁGINA: CONFIGURAÇÕES (funcional já no Bloco 1)
+   ============================================================ */
+let CONFIG=null;
+let settingsSub='operacao';
+
+function renderSettings(){
+  return `
+    <div class="page-head">
+      <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.settings}</svg> Configurações</h2>
+      <p class="desc">Os números base que o sistema usa para calcular seus preços.</p>
+    </div>
+    <div class="subtabs">
+      <button class="subtab ${settingsSub==='operacao'?'active':''}" onclick="goSub('operacao')">Minha operação</button>
+      <button class="subtab ${settingsSub==='despesas'?'active':''}" onclick="goSub('despesas')">Despesas p/ precificação</button>
+      <button class="subtab ${settingsSub==='empresa'?'active':''}" onclick="goSub('empresa')">Dados da empresa</button>
+      <button class="subtab ${settingsSub==='usuarios'?'active':''}" onclick="goSub('usuarios')">Usuários e senha</button>
+    </div>
+    <div id="subOperacao" class="subpage ${settingsSub==='operacao'?'active':''}">${renderOperacao()}</div>
+    <div id="subDespesas" class="subpage ${settingsSub==='despesas'?'active':''}">${renderDespesas()}</div>
+    <div id="subEmpresa" class="subpage ${settingsSub==='empresa'?'active':''}">${renderEmpresa()}</div>
+    <div id="subUsuarios" class="subpage ${settingsSub==='usuarios'?'active':''}">${renderUsuarios()}</div>
+  `;
+}
+
+function goSub(s){
+  settingsSub=s;
+  document.querySelectorAll('.subtab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.subpage').forEach(p=>p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('sub'+s.charAt(0).toUpperCase()+s.slice(1)).classList.add('active');
+  // Recarrega os cálculos da aba aberta (corrige despesas não salvando)
+  if(s==='operacao') recalcHora();
+  if(s==='despesas') renderDespesaList();
+  if(s==='usuarios') drawUsuarios();
+}
+
+function renderOperacao(){
+  const o=CONFIG.operacao;
+  return `
+    <div class="card">
+      <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.clock}</svg> Valor da sua hora</div>
+      <div class="card-sub">Você define quanto quer ganhar por mês. O sistema calcula quanto vale a sua hora de trabalho — e usa isso em cada orçamento.</div>
+      <div class="form-grid">
+        <div class="form-row">
+          <label>Quanto quer ganhar por mês <span class="help">(seu salário / pró-labore)</span></label>
+          <div class="inp-prefix"><span>R$</span><input class="inp" type="number" id="cfg_proLabore" value="${o.proLabore}" oninput="recalcHora()"></div>
+        </div>
+        <div class="form-row">
+          <label>Dias trabalhados no mês</label>
+          <input class="inp" type="number" id="cfg_diasUteis" value="${o.diasUteis}" oninput="recalcHora()">
+        </div>
+        <div class="form-row">
+          <label>Horas por dia</label>
+          <input class="inp" type="number" id="cfg_horasDia" value="${o.horasDia}" oninput="recalcHora()">
+        </div>
+      </div>
+      <div class="calc-box" style="margin-top:18px">
+        <div class="label">Valor calculado da sua hora de trabalho</div>
+        <div class="val" id="calcHora">R$ 0,00</div>
+        <div class="note" id="calcHoraNote"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.money}</svg> Margem de lucro padrão</div>
+      <div class="card-sub">A margem aplicada automaticamente sobre o custo. Você poderá mudar em cada orçamento.</div>
+      <div class="form-grid">
+        <div class="form-row">
+          <label>Margem padrão (%)</label>
+          <div class="inp-prefix" style="max-width:160px"><input class="inp" type="number" id="cfg_margem" value="${o.margemPadrao}" style="padding-left:12px"><span style="left:auto;right:12px">%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-save" onclick="saveOperacao()">Salvar alterações</button>
+  `;
+}
+
+function renderDespesas(){
+  return `
+    <div class="card">
+      <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.finance}</svg> Despesas fixas (para precificação)</div>
+      <div class="card-sub">Uma estimativa do custo fixo mensal — aluguel, luz, internet, água. Serve só para o sistema diluir esse custo nos seus pedidos e o preço sair justo. O controle financeiro detalhado fica na aba <b>Financeiro</b>.</div>
+      <div id="despList"></div>
+      <button class="btn-save" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong);margin-top:6px" onclick="addDespesa()">+ Adicionar despesa</button>
+      <div class="calc-box" style="margin-top:18px">
+        <div class="label">Total estimado de despesas fixas por mês</div>
+        <div class="val" id="calcDesp">R$ 0,00</div>
+        <div class="note">Distribuído entre os pedidos do mês no cálculo de custo da precificação.</div>
+      </div>
+    </div>
+    <button class="btn-save" onclick="saveDespesas()">Salvar despesas</button>
+  `;
+}
+
+function renderEmpresa(){
+  const e=CONFIG.empresa;
+  return `
+    <div class="card">
+      <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.clients}</svg> Dados da empresa</div>
+      <div class="card-sub">Aparecem nos orçamentos em PDF que você envia ao cliente.</div>
+      <div class="modal-section-label" style="margin-top:0">Logo da empresa</div>
+      <div style="display:flex;align-items:center;gap:18px;margin-bottom:8px;flex-wrap:wrap">
+        <div id="logoPreview" style="width:120px;height:120px;border-radius:var(--radius-sm);border:1.5px dashed var(--border-strong);display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--surface-2);flex-shrink:0">
+          ${e.logo?`<img src="${e.logo}" style="max-width:100%;max-height:100%;object-fit:contain">`:`<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`}
+        </div>
+        <div>
+          <input type="file" id="logoFile" accept="image/*" style="display:none" onchange="handleLogo(event)">
+          <button class="btn-save" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="document.getElementById('logoFile').click()">Escolher imagem</button>
+          ${e.logo?`<button class="btn-ghost" style="margin-left:8px" onclick="removeLogo()">Remover</button>`:''}
+          <p class="help" style="margin-top:8px;max-width:240px">PNG ou JPG. Aparece em destaque no topo dos orçamentos em PDF.</p>
+        </div>
+      </div>
+      <div class="modal-section-label">Mascote (opcional)</div>
+      <div style="display:flex;align-items:center;gap:18px;margin-bottom:8px;flex-wrap:wrap">
+        <div id="mascotePreview" style="width:120px;height:120px;border-radius:50%;border:1.5px dashed var(--border-strong);display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--surface-2);flex-shrink:0">
+          ${e.mascote?`<img src="${e.mascote}" style="max-width:100%;max-height:100%;object-fit:cover">`:`<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>`}
+        </div>
+        <div>
+          <input type="file" id="mascoteFile" accept="image/*" style="display:none" onchange="handleMascote(event)">
+          <button class="btn-save" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="document.getElementById('mascoteFile').click()">Escolher mascote</button>
+          ${e.mascote?`<button class="btn-ghost" style="margin-left:8px" onclick="removeMascote()">Remover</button>`:''}
+          <p class="help" style="margin-top:8px;max-width:240px">Aparece em destaque circular no orçamento, como na referência.</p>
+        </div>
+      </div>
+      <div class="section-divider"></div>
+      <div class="form-grid">
+        <div class="form-row"><label>Nome da empresa</label><input class="inp" id="cfg_nome" value="${e.nome||''}"></div>
+        <div class="form-row"><label>CNPJ</label><input class="inp" id="cfg_cnpj" value="${e.cnpj||''}" placeholder="00.000.000/0000-00"></div>
+        <div class="form-row"><label>WhatsApp</label><input class="inp" id="cfg_whats" value="${e.whatsapp||''}" placeholder="(43) 90000-0000"></div>
+        <div class="form-row"><label>Chave Pix</label><input class="inp" id="cfg_pix" value="${e.pix||''}" placeholder="Sua chave para receber"></div>
+        <div class="form-row" style="grid-column:1/-1"><label>Endereço</label><input class="inp" id="cfg_end" value="${e.endereco||''}" placeholder="Rua, número - Andirá/PR"></div>
+      </div>
+    </div>
+    <button class="btn-save" onclick="saveEmpresa()">Salvar dados</button>
+  `;
+}
+let logoTmp=null;
+function handleLogo(ev){
+  const file=ev.target.files[0];if(!file)return;
+  if(file.size>2*1024*1024){toast('Imagem muito grande (máx 2MB)');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    logoTmp=e.target.result;
+    document.getElementById('logoPreview').innerHTML=`<img src="${logoTmp}" style="max-width:100%;max-height:100%;object-fit:contain">`;
+    toast('Logo carregado — clique em Salvar dados');
+  };
+  reader.readAsDataURL(file);
+}
+function removeLogo(){
+  logoTmp='';
+  CONFIG.empresa.logo='';
+  dbPut('config',CONFIG);
+  goSub('empresa');
+  document.querySelector('.subtab:nth-child(3)')?.classList.add('active');
+  toast('Logo removido');
+}
+let mascoteTmp=null;
+function handleMascote(ev){
+  const file=ev.target.files[0];if(!file)return;
+  if(file.size>2*1024*1024){toast('Imagem muito grande (máx 2MB)');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    mascoteTmp=e.target.result;
+    document.getElementById('mascotePreview').innerHTML=`<img src="${mascoteTmp}" style="max-width:100%;max-height:100%;object-fit:cover">`;
+    toast('Mascote carregado — clique em Salvar dados');
+  };
+  reader.readAsDataURL(file);
+}
+function removeMascote(){
+  mascoteTmp='';
+  CONFIG.empresa.mascote='';
+  dbPut('config',CONFIG);
+  goSub('empresa');
+  document.querySelector('.subtab:nth-child(3)')?.classList.add('active');
+  toast('Mascote removido');
+}
+
+/* ---------- Cálculos e ações de Configurações ---------- */
+function fmt(v){return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+function recalcHora(){
+  const pl=parseFloat(document.getElementById('cfg_proLabore').value)||0;
+  const di=parseFloat(document.getElementById('cfg_diasUteis').value)||1;
+  const ho=parseFloat(document.getElementById('cfg_horasDia').value)||1;
+  const totalHoras=di*ho;
+  const valorHora=pl/totalHoras;
+  document.getElementById('calcHora').textContent=fmt(valorHora);
+  document.getElementById('calcHoraNote').textContent=`${pl>0?fmt(pl):'R$ 0,00'} ÷ (${di} dias × ${ho}h = ${totalHoras}h no mês)`;
+}
+
+function bindSettings(){
+  // Sempre prepara a cópia de trabalho das despesas ao abrir Configurações
+  despesasTmp=JSON.parse(JSON.stringify(CONFIG.despesasFixas||[]));
+  if(settingsSub==='operacao') recalcHora();
+  if(settingsSub==='despesas') renderDespesaList();
+}
+
+/* Despesas dinâmicas */
+let despesasTmp=[];
+function renderDespesaList(){
+  despesasTmp=JSON.parse(JSON.stringify(CONFIG.despesasFixas||[]));
+  drawDespesas();
+}
+function drawDespesas(){
+  const box=document.getElementById('despList');
+  if(!box)return;
+  box.innerHTML=despesasTmp.map((d,i)=>`
+    <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center">
+      <input class="inp" value="${d.nome}" placeholder="Nome da despesa" oninput="despesasTmp[${i}].nome=this.value" style="flex:1">
+      <div class="inp-prefix" style="width:150px"><span>R$</span><input class="inp" type="number" value="${d.valor}" oninput="despesasTmp[${i}].valor=parseFloat(this.value)||0;sumDesp()"></div>
+      <button class="icon-btn" onclick="despesasTmp.splice(${i},1);drawDespesas()" title="Remover" style="flex-shrink:0">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      </button>
+    </div>`).join('')||'<p style="color:var(--text-3);font-size:13px;padding:8px 0">Nenhuma despesa cadastrada ainda.</p>';
+  sumDesp();
+}
+function sumDesp(){
+  const tot=despesasTmp.reduce((s,d)=>s+(parseFloat(d.valor)||0),0);
+  const el=document.getElementById('calcDesp');if(el)el.textContent=fmt(tot);
+}
+function addDespesa(){despesasTmp.push({nome:'',valor:0});drawDespesas();}
+
+async function saveOperacao(){
+  CONFIG.operacao.proLabore=parseFloat(document.getElementById('cfg_proLabore').value)||0;
+  CONFIG.operacao.diasUteis=parseFloat(document.getElementById('cfg_diasUteis').value)||0;
+  CONFIG.operacao.horasDia=parseFloat(document.getElementById('cfg_horasDia').value)||0;
+  CONFIG.operacao.margemPadrao=parseFloat(document.getElementById('cfg_margem').value)||0;
+  await dbPut('config',CONFIG);
+  toast('Operação salva com sucesso');
+}
+async function saveDespesas(){
+  CONFIG.despesasFixas=despesasTmp.filter(d=>d.nome.trim()!=='');
+  await dbPut('config',CONFIG);
+  toast('Despesas salvas com sucesso');
+}
+async function saveEmpresa(){
+  CONFIG.empresa.nome=document.getElementById('cfg_nome').value;
+  CONFIG.empresa.cnpj=document.getElementById('cfg_cnpj').value;
+  CONFIG.empresa.whatsapp=document.getElementById('cfg_whats').value;
+  CONFIG.empresa.pix=document.getElementById('cfg_pix').value;
+  CONFIG.empresa.endereco=document.getElementById('cfg_end').value;
+  if(logoTmp!==null)CONFIG.empresa.logo=logoTmp;
+  if(mascoteTmp!==null)CONFIG.empresa.mascote=mascoteTmp;
+  await dbPut('config',CONFIG);
+  logoTmp=null;mascoteTmp=null;
+  toast('Dados da empresa salvos');
+}
+
+/* ---------- Gestão de usuários e senha ---------- */
+function renderUsuarios(){
+  return `
+    <div class="card">
+      <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg> Usuários do sistema</div>
+      <div class="card-sub">Quem pode entrar no sistema. Crie logins, troque senhas.</div>
+      <div id="usuariosList"></div>
+      <button class="btn-save" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong);margin-top:6px" onclick="userModal()">+ Novo usuário</button>
+    </div>`;
+}
+async function drawUsuarios(){
+  let users=await dbAll('users');
+  // Se não há usuários ainda, cria o admin padrão
+  if(users.length===0){
+    await dbPut('users',{id:'admin',usuario:'admin',senha:'1234',nome:'Administrador',criadoEm:Date.now()});
+    users=await dbAll('users');
+  }
+  const box=document.getElementById('usuariosList');if(!box)return;
+  box.innerHTML=`<div class="tbl-scroll" style="margin-top:8px"><table>
+    <thead><tr><th>Usuário</th><th>Nome</th><th class="t-right">Ações</th></tr></thead>
+    <tbody>${users.map(u=>`
+      <tr>
+        <td><div class="t-main">${esc(u.usuario)}</div>${u.id===sessionStorage.getItem('mp_user')?'<div class="t-sub" style="color:var(--brand)">você</div>':''}</td>
+        <td>${esc(u.nome||'—')}</td>
+        <td><div class="t-actions">
+          <button class="act-btn" onclick="userModal('${u.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+          ${users.length>1?`<button class="act-btn danger" onclick="delUser('${u.id}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>`:''}
+        </div></td>
+      </tr>`).join('')}</tbody></table></div>`;
+}
+async function userModal(id){
+  let u={id:'',usuario:'',senha:'',nome:''};
+  if(id){const found=await dbGet('users',id);if(found)u=found;}
+  openModal(`
+    <div class="modal-head">
+      <h3>${id?'Editar usuário':'Novo usuário'}</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="u_id" value="${esc(u.id)}">
+      <div class="form-grid">
+        <div class="form-row" style="grid-column:1/-1"><label>Nome <span class="help">(opcional)</span></label><input class="inp" id="u_nome" value="${esc(u.nome)}" placeholder="Ex: Gabriel"></div>
+        <div class="form-row"><label>Usuário (login) *</label><input class="inp" id="u_usuario" value="${esc(u.usuario)}" placeholder="admin"></div>
+        <div class="form-row"><label>Senha *</label><input class="inp" type="text" id="u_senha" value="${esc(u.senha)}" placeholder="••••"></div>
+      </div>
+      <p class="help" style="margin-top:12px">A senha fica visível aqui para você poder consultar e trocar com facilidade.</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveUser()">Salvar</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('u_usuario').focus(),100);
+}
+async function saveUser(){
+  const usuario=val('u_usuario').toLowerCase(), senha=val('u_senha');
+  if(!usuario){toast('Informe o usuário');return;}
+  if(!senha){toast('Informe a senha');return;}
+  // Verifica usuário duplicado
+  const all=await dbAll('users');
+  const dup=all.find(x=>x.usuario===usuario && x.id!==val('u_id'));
+  if(dup){toast('Já existe um usuário com esse login');return;}
+  const id=val('u_id')||uid();
+  await dbPut('users',{id,usuario,senha,nome:val('u_nome'),criadoEm:Date.now()});
+  closeModal();toast('Usuário salvo');drawUsuarios();
+}
+async function delUser(id){
+  const all=await dbAll('users');
+  if(all.length<=1){toast('Não dá para excluir o único usuário');return;}
+  if(id===sessionStorage.getItem('mp_user')){toast('Você não pode excluir a si mesmo enquanto está logado');return;}
+  if(!confirm('Excluir este usuário?'))return;
+  await dbDel('users',id);
+  toast('Usuário excluído');drawUsuarios();
+}
+
+/* ---------- Toast ---------- */
+let toastTimer=null;
+function toast(msg){
+  const t=document.getElementById('toast');
+  document.getElementById('toastMsg').textContent=msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2600);
+}
+
+/* ============================================================
+   MODAL — helpers genéricos
+   ============================================================ */
+function openModal(html){
+  document.getElementById('modalBox').innerHTML=html;
+  document.getElementById('modalBg').classList.add('show');
+}
+function closeModal(){
+  document.getElementById('modalBg').classList.remove('show');
+}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function num(id){return parseFloat(document.getElementById(id).value)||0;}
+function val(id){const e=document.getElementById(id);return e?e.value.trim():'';}
+function fmt6(v){return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:6});}
+
+/* ============================================================
+   MÓDULO: CLIENTES E FORNECEDORES
+   ============================================================ */
+let cliSub='clients', cliSearch='';
+async function renderClientsPage(main){
+  main.innerHTML=`
+    <div class="page-head-row">
+      <div class="page-head" style="margin:0">
+        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.clients}</svg> Contatos</h2>
+        <p class="desc">Seus clientes e fornecedores cadastrados.</p>
+      </div>
+      <button class="btn-add" onclick="${'openContactModal()'}">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Novo ${cliSub==='clients'?'cliente':'fornecedor'}
+      </button>
+    </div>
+    <div class="subtabs">
+      <button class="subtab ${cliSub==='clients'?'active':''}" onclick="setCliSub('clients')">Clientes</button>
+      <button class="subtab ${cliSub==='suppliers'?'active':''}" onclick="setCliSub('suppliers')">Fornecedores</button>
+    </div>
+    <div class="toolbar">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="cliSearchInp" placeholder="Buscar por nome, telefone..." value="${esc(cliSearch)}" oninput="cliSearch=this.value;drawContacts()">
+      </div>
+    </div>
+    <div id="cliTable"></div>`;
+  drawContacts();
+}
+function setCliSub(s){cliSub=s;cliSearch='';renderClientsPage(document.getElementById('main'));}
+
+async function drawContacts(){
+  const store=cliSub==='clients'?'clients':'suppliers';
+  let list=await dbAll(store);
+  const q=cliSearch.toLowerCase();
+  if(q) list=list.filter(c=>(c.nome||'').toLowerCase().includes(q)||(c.fone||'').toLowerCase().includes(q)||(c.doc||'').toLowerCase().includes(q));
+  list.sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const box=document.getElementById('cliTable');
+  if(!box)return;
+  if(list.length===0){
+    box.innerHTML=`<div class="tbl-wrap"><div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON.clients}</svg>
+      <h3>Nenhum ${cliSub==='clients'?'cliente':'fornecedor'} ${cliSearch?'encontrado':'cadastrado'}</h3>
+      <p>${cliSearch?'Tente outro termo de busca.':'Clique em "Novo" para adicionar o primeiro.'}</p>
+    </div></div>`;
+    return;
+  }
+  box.innerHTML=`<div class="tbl-wrap"><div class="tbl-scroll"><table>
+    <thead><tr><th>Nome</th><th>Telefone</th><th>${cliSub==='clients'?'CPF/CNPJ':'CNPJ'}</th><th>E-mail</th><th class="t-right">Ações</th></tr></thead>
+    <tbody>${list.map(c=>`
+      <tr>
+        <td><div class="t-main">${esc(c.nome)}</div>${c.cidade?`<div class="t-sub">${esc(c.cidade)}</div>`:''}</td>
+        <td>${esc(c.fone)||'<span style="color:var(--text-3)">—</span>'}</td>
+        <td>${esc(c.doc)||'<span style="color:var(--text-3)">—</span>'}</td>
+        <td>${esc(c.email)||'<span style="color:var(--text-3)">—</span>'}</td>
+        <td><div class="t-actions">
+          <button class="act-btn" onclick="openContactModal('${c.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+          <button class="act-btn danger" onclick="delContact('${c.id}','${esc(c.nome)}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+        </div></td>
+      </tr>`).join('')}</tbody></table></div></div>`;
+}
+
+async function openContactModal(id){
+  const store=cliSub==='clients'?'clients':'suppliers';
+  let c={id:'',nome:'',fone:'',doc:'',email:'',cidade:'',obs:''};
+  if(id){const found=await dbGet(store,id);if(found)c=found;}
+  const tipo=cliSub==='clients'?'cliente':'fornecedor';
+  openModal(`
+    <div class="modal-head">
+      <h3>${id?'Editar':'Novo'} ${tipo}</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="c_id" value="${esc(c.id)}">
+      <div class="form-grid">
+        <div class="form-row" style="grid-column:1/-1"><label>Nome ${cliSub==='clients'?'do cliente':'do fornecedor'} *</label><input class="inp" id="c_nome" value="${esc(c.nome)}" placeholder="Nome completo ou empresa"></div>
+        <div class="form-row"><label>Telefone / WhatsApp</label><input class="inp" id="c_fone" value="${esc(c.fone)}" placeholder="(43) 90000-0000"></div>
+        <div class="form-row"><label>${cliSub==='clients'?'CPF / CNPJ':'CNPJ'}</label><input class="inp" id="c_doc" value="${esc(c.doc)}" placeholder="Opcional"></div>
+        <div class="form-row"><label>E-mail</label><input class="inp" id="c_email" value="${esc(c.email)}" placeholder="Opcional"></div>
+        <div class="form-row"><label>Cidade</label><input class="inp" id="c_cidade" value="${esc(c.cidade)}" placeholder="Andirá/PR"></div>
+        <div class="form-row" style="grid-column:1/-1"><label>Observações</label><input class="inp" id="c_obs" value="${esc(c.obs)}" placeholder="Anotações (opcional)"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveContact()">Salvar</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('c_nome').focus(),100);
+}
+async function saveContact(){
+  const nome=val('c_nome');
+  if(!nome){toast('Informe o nome');document.getElementById('c_nome').focus();return;}
+  const store=cliSub==='clients'?'clients':'suppliers';
+  const id=val('c_id')||uid();
+  await dbPut(store,{id,nome,fone:val('c_fone'),doc:val('c_doc'),email:val('c_email'),cidade:val('c_cidade'),obs:val('c_obs')});
+  closeModal();toast(`${cliSub==='clients'?'Cliente':'Fornecedor'} salvo`);drawContacts();
+}
+async function delContact(id,nome){
+  if(!confirm(`Excluir "${nome}"? Essa ação não pode ser desfeita.`))return;
+  const store=cliSub==='clients'?'clients':'suppliers';
+  await dbDel(store,id);
+  toast('Excluído');drawContacts();
+}
+
+/* ============================================================
+   MÓDULO: MATERIAIS
+   Calcula custo por unidade de uso automaticamente.
+   Tipos: folha/unidade, metro linear, peça avulsa.
+   ============================================================ */
+let matSearch='', matTipo='folha';
+const MAT_TIPOS={
+  folha:{label:'Por folha / unidade',desc:'Papel, adesivo em folha. Compra em pacote, usa por folha.',compraLabel:'Itens no pacote',usoLabel:'folha'},
+  metro:{label:'Por metro linear',desc:'BOPP, vinil, lona em bobina. Compra a bobina, usa em metros.',compraLabel:'Metros na bobina',usoLabel:'metro'},
+  peca:{label:'Por peça avulsa',desc:'Caneca, chaveiro, botton. Compra e usa por unidade.',compraLabel:'Peças compradas',usoLabel:'peça'},
+};
+async function renderMaterialsPage(main){
+  main.innerHTML=`
+    <div class="page-head-row">
+      <div class="page-head" style="margin:0">
+        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.materials}</svg> Materiais</h2>
+        <p class="desc">Seu estoque de insumos. O sistema calcula o custo por unidade automaticamente.</p>
+      </div>
+      <button class="btn-add" onclick="openMaterialModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Novo material
+      </button>
+    </div>
+    <div class="toolbar">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="matSearchInp" placeholder="Buscar material..." value="${esc(matSearch)}" oninput="matSearch=this.value;drawMaterials()">
+      </div>
+    </div>
+    <div id="matTable"></div>`;
+  drawMaterials();
+}
+async function drawMaterials(){
+  let list=await dbAll('materials');
+  const suppliers=await dbAll('suppliers');
+  const supMap={};suppliers.forEach(s=>supMap[s.id]=s.nome);
+  const q=matSearch.toLowerCase();
+  if(q) list=list.filter(m=>(m.nome||'').toLowerCase().includes(q));
+  list.sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const box=document.getElementById('matTable');
+  if(!box)return;
+
+  // KPIs de estoque no topo
+  const totItens=list.length;
+  const valorEstoque=list.reduce((s,m)=>s+(m.custoUnit*(m.estoque||0)),0);
+  const baixos=list.filter(m=>m.estoqueMin>0&&(m.estoque||0)<=m.estoqueMin).length;
+
+  let kpis=`<div class="kpi-row">
+    <div class="kpi"><div class="k-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.materials}</svg> Materiais cadastrados</div><div class="k-val">${totItens}</div></div>
+    <div class="kpi"><div class="k-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.money}</svg> Valor parado em estoque</div><div class="k-val">${fmt(valorEstoque)}</div></div>
+    <div class="kpi"><div class="k-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Estoque baixo</div><div class="k-val" style="${baixos>0?'color:#E5484D':''}">${baixos}</div></div>
+  </div>`;
+
+  if(list.length===0){
+    box.innerHTML=kpis+`<div class="tbl-wrap"><div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON.materials}</svg>
+      <h3>Nenhum material ${matSearch?'encontrado':'cadastrado'}</h3>
+      <p>${matSearch?'Tente outro termo.':'Cadastre seus papéis, adesivos e insumos para a precificação puxar os custos.'}</p>
+    </div></div>`;
+    return;
+  }
+  box.innerHTML=kpis+`<div class="tbl-wrap"><div class="tbl-scroll"><table>
+    <thead><tr><th>Material</th><th>Tipo</th><th class="t-right">Custo unitário</th><th class="t-right">Em estoque</th><th class="t-right">Ações</th></tr></thead>
+    <tbody>${list.map(m=>{
+      const t=MAT_TIPOS[m.tipo]||MAT_TIPOS.folha;
+      const est=m.estoque||0;
+      const baixo=m.estoqueMin>0&&est<=m.estoqueMin;
+      const fornNome=m.fornecedorId&&supMap[m.fornecedorId]?supMap[m.fornecedorId]:(m.marca||'');
+      return `<tr>
+        <td><div class="t-main">${esc(m.nome)}</div>${fornNome?`<div class="t-sub">${esc(fornNome)}</div>`:''}</td>
+        <td><span class="badge blue">${t.label.replace('Por ','')}</span></td>
+        <td class="t-right"><b style="color:var(--brand)">${fmt6(m.custoUnit)}</b><div class="t-sub">por ${t.usoLabel}</div></td>
+        <td class="t-right">
+          <b style="${baixo?'color:#E5484D':'color:var(--text)'}">${est.toLocaleString('pt-BR')}</b>
+          <span class="t-sub" style="display:inline"> ${t.usoLabel}${est!==1?'s':''}</span>
+          ${baixo?'<div class="t-sub" style="color:#E5484D">estoque baixo</div>':''}
+        </td>
+        <td><div class="t-actions">
+          <button class="act-btn" onclick="stockModal('${m.id}')" title="Entrada/baixa de estoque" style="color:var(--brand);border-color:var(--brand)"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><line x1="12" y1="22" x2="12" y2="12"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/></svg></button>
+          <button class="act-btn" onclick="openMaterialModal('${m.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+          <button class="act-btn danger" onclick="delMaterial('${m.id}','${esc(m.nome)}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+        </div></td>
+      </tr>`;}).join('')}</tbody></table></div></div>`;
+}
+async function openMaterialModal(id){
+  let m={id:'',nome:'',marca:'',fornecedorId:'',tipo:'folha',valorCompra:0,qtdCompra:1,custoUnit:0,estoque:0,estoqueMin:0};
+  if(id){const found=await dbGet('materials',id);if(found)m={...m,...found};}
+  matTipo=m.tipo||'folha';
+  const suppliers=await dbAll('suppliers');
+  suppliers.sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const supOpts=`<option value="">— Nenhum / não informar —</option>`+suppliers.map(s=>`<option value="${s.id}" ${m.fornecedorId===s.id?'selected':''}>${esc(s.nome)}</option>`).join('');
+  openModal(`
+    <div class="modal-head">
+      <h3>${id?'Editar':'Novo'} material</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="m_id" value="${esc(m.id)}">
+      <input type="hidden" id="m_estoque" value="${m.estoque||0}">
+      <div class="form-grid">
+        <div class="form-row" style="grid-column:1/-1"><label>Nome do material *</label><input class="inp" id="m_nome" value="${esc(m.nome)}" placeholder="Ex: Papel fotográfico A4 glossy"></div>
+        <div class="form-row"><label>Fornecedor da compra</label>
+          <select class="inp" id="m_forn">${supOpts}</select>
+          ${suppliers.length===0?'<span class="help">Cadastre fornecedores na aba Clientes para escolher aqui.</span>':''}
+        </div>
+        <div class="form-row"><label>Marca <span class="help">(opcional)</span></label><input class="inp" id="m_marca" value="${esc(m.marca)}" placeholder="Ex: Suzano, Couché"></div>
+      </div>
+      <div class="modal-section-label">Como esse material é cobrado?</div>
+      <div class="radio-grid" id="m_tipoGrid">
+        ${Object.entries(MAT_TIPOS).map(([k,t])=>`
+          <div class="radio-opt ${matTipo===k?'sel':''}" data-tipo="${k}" onclick="selMatTipo('${k}')">
+            <div class="ro-title">${t.label}</div>
+            <div class="ro-desc">${t.desc}</div>
+          </div>`).join('')}
+      </div>
+      <div class="modal-section-label">Valores de compra</div>
+      <div class="form-grid">
+        <div class="form-row"><label>Valor pago na compra *</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="m_valor" value="${m.valorCompra||''}" placeholder="0,00" oninput="recalcMat()"></div></div>
+        <div class="form-row"><label id="m_qtdLabel">${MAT_TIPOS[matTipo].compraLabel} *</label><input class="inp" type="number" step="0.01" id="m_qtd" value="${m.qtdCompra||''}" placeholder="0" oninput="recalcMat()"></div>
+      </div>
+      <div class="calc-box" style="margin-top:16px">
+        <div class="label">Custo por <span id="m_usoLabel">${MAT_TIPOS[matTipo].usoLabel}</span> (calculado automaticamente)</div>
+        <div class="val" id="m_custoCalc">${fmt6(m.custoUnit)}</div>
+        <div class="note" id="m_calcNote"></div>
+      </div>
+      <div class="modal-section-label">Controle de estoque</div>
+      <div class="form-grid">
+        <div class="form-row"><label>Quantidade atual em estoque</label><input class="inp" type="number" step="0.01" id="m_estoqueAtual" value="${m.estoque||0}" placeholder="0"><span class="help">Quanto você tem disponível agora.</span></div>
+        <div class="form-row"><label>Avisar quando faltar <span class="help">(estoque mínimo)</span></label><input class="inp" type="number" step="0.01" id="m_estoqueMin" value="${m.estoqueMin||0}" placeholder="0"><span class="help">0 = não avisar.</span></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveMaterial()">Salvar material</button>
+    </div>`);
+  setTimeout(()=>{document.getElementById('m_nome').focus();recalcMat();},100);
+}
+function selMatTipo(k){
+  matTipo=k;
+  document.querySelectorAll('#m_tipoGrid .radio-opt').forEach(o=>o.classList.toggle('sel',o.dataset.tipo===k));
+  document.getElementById('m_qtdLabel').textContent=MAT_TIPOS[k].compraLabel+' *';
+  document.getElementById('m_usoLabel').textContent=MAT_TIPOS[k].usoLabel;
+  recalcMat();
+}
+function recalcMat(){
+  const valor=num('m_valor'), qtd=num('m_qtd');
+  const custo=qtd>0?valor/qtd:0;
+  document.getElementById('m_custoCalc').textContent=fmt6(custo);
+  const t=MAT_TIPOS[matTipo];
+  document.getElementById('m_calcNote').textContent=valor>0&&qtd>0?`${fmt(valor)} ÷ ${qtd} ${t.usoLabel}${qtd>1?'s':''} = ${fmt6(custo)} por ${t.usoLabel}`:'Preencha o valor e a quantidade.';
+}
+async function saveMaterial(){
+  const nome=val('m_nome');
+  if(!nome){toast('Informe o nome do material');document.getElementById('m_nome').focus();return;}
+  const valor=num('m_valor'), qtd=num('m_qtd');
+  if(qtd<=0){toast('Informe a quantidade comprada');return;}
+  const custoUnit=valor/qtd;
+  const id=val('m_id')||uid();
+  const sel=document.getElementById('m_forn');
+  await dbPut('materials',{id,nome,marca:val('m_marca'),fornecedorId:sel?sel.value:'',tipo:matTipo,
+    valorCompra:valor,qtdCompra:qtd,custoUnit,
+    estoque:num('m_estoqueAtual'),estoqueMin:num('m_estoqueMin')});
+  closeModal();toast('Material salvo');drawMaterials();
+}
+async function delMaterial(id,nome){
+  if(!confirm(`Excluir o material "${nome}"?`))return;
+  await dbDel('materials',id);
+  toast('Material excluído');drawMaterials();
+}
+
+/* ---- Entrada / baixa de estoque ---- */
+async function stockModal(id){
+  const m=await dbGet('materials',id);
+  if(!m)return;
+  const t=MAT_TIPOS[m.tipo]||MAT_TIPOS.folha;
+  openModal(`
+    <div class="modal-head">
+      <h3>Estoque — ${esc(m.nome)}</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="s_id" value="${m.id}">
+      <div class="calc-box" style="margin:0 0 18px">
+        <div class="label">Quantidade atual em estoque</div>
+        <div class="val" id="s_atual">${(m.estoque||0).toLocaleString('pt-BR')} <span style="font-size:15px;color:var(--text-2)">${t.usoLabel}${(m.estoque||0)!==1?'s':''}</span></div>
+      </div>
+      <div class="modal-section-label">Registrar movimento</div>
+      <div class="radio-grid" style="grid-template-columns:1fr 1fr">
+        <div class="radio-opt sel" id="s_optIn" onclick="setStockDir('in')">
+          <div class="ro-title">↑ Entrada</div><div class="ro-desc">Comprei mais / repus estoque</div>
+        </div>
+        <div class="radio-opt" id="s_optOut" onclick="setStockDir('out')">
+          <div class="ro-title">↓ Baixa</div><div class="ro-desc">Usei / perdi / ajuste</div>
+        </div>
+      </div>
+      <div class="form-row" style="margin-top:14px"><label>Quantidade (em ${t.usoLabel}s)</label><input class="inp" type="number" step="0.01" id="s_qtd" placeholder="0" autofocus></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="applyStock()">Registrar</button>
+    </div>`);
+  window._stockDir='in';
+  setTimeout(()=>document.getElementById('s_qtd').focus(),100);
+}
+function setStockDir(d){
+  window._stockDir=d;
+  document.getElementById('s_optIn').classList.toggle('sel',d==='in');
+  document.getElementById('s_optOut').classList.toggle('sel',d==='out');
+}
+async function applyStock(){
+  const id=val('s_id'), qtd=num('s_qtd');
+  if(qtd<=0){toast('Informe uma quantidade');return;}
+  const m=await dbGet('materials',id);
+  const atual=m.estoque||0;
+  const novo=window._stockDir==='in'?atual+qtd:Math.max(0,atual-qtd);
+  m.estoque=novo;
+  await dbPut('materials',m);
+  closeModal();toast(`Estoque atualizado: ${novo.toLocaleString('pt-BR')}`);drawMaterials();
+}
+
+/* ============================================================
+   MÓDULO: EQUIPAMENTOS
+   Depreciação por hora + custo de impressão (tinta) embutido.
+   Depreciação/h = (valor - revenda) / (anos × dias/ano × horas/dia)
+   ============================================================ */
+let equipSearch='';
+async function renderEquipPage(main){
+  main.innerHTML=`
+    <div class="page-head-row">
+      <div class="page-head" style="margin:0">
+        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.equip}</svg> Equipamentos</h2>
+        <p class="desc">Suas máquinas. O sistema calcula a depreciação por hora e o custo de tinta por impressão.</p>
+      </div>
+      <button class="btn-add" onclick="openEquipModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Novo equipamento
+      </button>
+    </div>
+    <div class="toolbar">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="eqSearchInp" placeholder="Buscar equipamento..." value="${esc(equipSearch)}" oninput="equipSearch=this.value;drawEquip()">
+      </div>
+    </div>
+    <div id="eqTable"></div>`;
+  drawEquip();
+}
+async function drawEquip(){
+  let list=await dbAll('equipment');
+  const q=equipSearch.toLowerCase();
+  if(q) list=list.filter(e=>(e.nome||'').toLowerCase().includes(q));
+  list.sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const box=document.getElementById('eqTable');
+  if(!box)return;
+  if(list.length===0){
+    box.innerHTML=`<div class="tbl-wrap"><div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON.equip}</svg>
+      <h3>Nenhum equipamento ${equipSearch?'encontrado':'cadastrado'}</h3>
+      <p>${equipSearch?'Tente outro termo.':'Cadastre suas máquinas (impressora, recorte, laminadora...) para a precificação considerar a depreciação.'}</p>
+    </div></div>`;
+    return;
+  }
+  box.innerHTML=`<div class="tbl-wrap"><div class="tbl-scroll"><table>
+    <thead><tr><th>Equipamento</th><th class="t-right">Depreciação / hora</th><th class="t-right">Custo de impressão</th><th class="t-right">Ações</th></tr></thead>
+    <tbody>${list.map(e=>{
+      let impr='<span style="color:var(--text-3)">—</span>';
+      if(e.temTinta){
+        impr=`<div class="t-sub" style="display:block">P&B: <b style="color:var(--text)">${fmt6(e.custoPB)}</b></div><div class="t-sub" style="display:block">Cor: <b style="color:var(--text)">${fmt6(e.custoCor)}</b></div>`;
+      }
+      return `<tr>
+        <td><div class="t-main">${esc(e.nome)}</div></td>
+        <td class="t-right"><b style="color:var(--brand)">${fmt6(e.deprecHora)}</b><div class="t-sub">por hora de uso</div></td>
+        <td class="t-right">${impr}</td>
+        <td><div class="t-actions">
+          <button class="act-btn" onclick="openEquipModal('${e.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+          <button class="act-btn danger" onclick="delEquip('${e.id}','${esc(e.nome)}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+        </div></td>
+      </tr>`;}).join('')}</tbody></table></div></div>`;
+}
+async function openEquipModal(id){
+  let e={id:'',nome:'',valorAquis:0,valorRevenda:0,anos:5,diasAno:264,horasDia:8,deprecHora:0,
+         temTinta:false,refilPB:0,rendPB:6500,refilCor:0,rendCor:5000,custoPB:0,custoCor:0};
+  if(id){const found=await dbGet('equipment',id);if(found)e={...e,...found};}
+  openModal(`
+    <div class="modal-head">
+      <h3>${id?'Editar':'Novo'} equipamento</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="e_id" value="${esc(e.id)}">
+      <div class="form-row" style="margin-bottom:4px"><label>Nome do equipamento *</label><input class="inp" id="e_nome" value="${esc(e.nome)}" placeholder="Ex: Impressora Brother DCP-T730DW"></div>
+
+      <div class="modal-section-label">Depreciação da máquina</div>
+      <p style="font-size:12.5px;color:var(--text-3);margin:-6px 0 12px">Quanto a máquina "gasta de si mesma" por hora de uso. Assim o preço já guarda dinheiro para a troca futura.</p>
+      <div class="form-grid">
+        <div class="form-row"><label>Valor que você pagou *</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="e_aquis" value="${e.valorAquis||''}" placeholder="0,00" oninput="recalcEquip()"></div></div>
+        <div class="form-row"><label>Valor de revenda estimado <span class="help">(quanto valerá no fim)</span></label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="e_revenda" value="${e.valorRevenda||''}" placeholder="0,00" oninput="recalcEquip()"></div></div>
+        <div class="form-row"><label>Vida útil (anos) *</label><input class="inp" type="number" step="0.5" id="e_anos" value="${e.anos||''}" placeholder="5" oninput="recalcEquip()"></div>
+        <div class="form-row"><label>Dias de uso por ano</label><input class="inp" type="number" id="e_diasAno" value="${e.diasAno||''}" placeholder="264" oninput="recalcEquip()"></div>
+        <div class="form-row"><label>Horas de uso por dia</label><input class="inp" type="number" step="0.5" id="e_horasDia" value="${e.horasDia||''}" placeholder="8" oninput="recalcEquip()"></div>
+      </div>
+      <div class="calc-box" style="margin-top:16px">
+        <div class="label">Custo de depreciação por hora de uso</div>
+        <div class="val" id="e_deprecCalc">${fmt6(e.deprecHora)}</div>
+        <div class="note" id="e_deprecNote"></div>
+      </div>
+
+      <div class="modal-section-label">Tinta / impressão <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-3)">(só para impressoras)</span></div>
+      <label style="display:flex;align-items:center;gap:9px;cursor:pointer;margin-bottom:6px">
+        <input type="checkbox" id="e_temTinta" ${e.temTinta?'checked':''} onchange="toggleTinta()" style="width:17px;height:17px;accent-color:var(--brand)">
+        <span style="font-size:13.5px;font-weight:500">Esta máquina imprime (calcular custo de tinta por página)</span>
+      </label>
+      <div id="e_tintaBox" style="display:${e.temTinta?'block':'none'}">
+        <p style="font-size:12.5px;color:var(--text-3);margin:6px 0 12px">Informe o preço do refil e quantas páginas ele rende. O custo de tinta entra sozinho no preço da folha impressa.</p>
+        <div class="form-grid">
+          <div class="form-row"><label>Preço do refil preto</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="e_refilPB" value="${e.refilPB||''}" placeholder="0,00" oninput="recalcEquip()"></div></div>
+          <div class="form-row"><label>Rendimento preto (páginas)</label><input class="inp" type="number" id="e_rendPB" value="${e.rendPB||''}" placeholder="6500" oninput="recalcEquip()"></div>
+          <div class="form-row"><label>Preço dos refis coloridos <span class="help">(soma das 3 cores)</span></label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="e_refilCor" value="${e.refilCor||''}" placeholder="0,00" oninput="recalcEquip()"></div></div>
+          <div class="form-row"><label>Rendimento colorido (páginas)</label><input class="inp" type="number" id="e_rendCor" value="${e.rendCor||''}" placeholder="5000" oninput="recalcEquip()"></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap">
+          <div class="calc-box" style="flex:1;min-width:160px;margin:0">
+            <div class="label">Custo de tinta — P&B</div>
+            <div class="val" id="e_custoPB" style="font-size:21px">${fmt6(e.custoPB)}</div>
+            <div class="note">por página</div>
+          </div>
+          <div class="calc-box" style="flex:1;min-width:160px;margin:0">
+            <div class="label">Custo de tinta — Colorido</div>
+            <div class="val" id="e_custoCor" style="font-size:21px">${fmt6(e.custoCor)}</div>
+            <div class="note">por página</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveEquip()">Salvar equipamento</button>
+    </div>`);
+  setTimeout(()=>{document.getElementById('e_nome').focus();recalcEquip();},100);
+}
+function toggleTinta(){
+  const on=document.getElementById('e_temTinta').checked;
+  document.getElementById('e_tintaBox').style.display=on?'block':'none';
+  recalcEquip();
+}
+function recalcEquip(){
+  const aquis=num('e_aquis'), revenda=num('e_revenda'), anos=num('e_anos'), diasAno=num('e_diasAno'), horasDia=num('e_horasDia');
+  const totalHoras=anos*diasAno*horasDia;
+  const deprec=totalHoras>0?Math.max(0,(aquis-revenda))/totalHoras:0;
+  document.getElementById('e_deprecCalc').textContent=fmt6(deprec);
+  document.getElementById('e_deprecNote').textContent=totalHoras>0&&aquis>0
+    ? `(${fmt(aquis)} − ${fmt(revenda)}) ÷ ${totalHoras.toLocaleString('pt-BR')}h de vida útil`
+    : 'Preencha o valor pago e a vida útil.';
+  if(document.getElementById('e_temTinta').checked){
+    const cPB=num('e_rendPB')>0?num('e_refilPB')/num('e_rendPB'):0;
+    const cCor=num('e_rendCor')>0?num('e_refilCor')/num('e_rendCor'):0;
+    const pb=document.getElementById('e_custoPB'), cor=document.getElementById('e_custoCor');
+    if(pb)pb.textContent=fmt6(cPB);
+    if(cor)cor.textContent=fmt6(cCor);
+  }
+}
+async function saveEquip(){
+  const nome=val('e_nome');
+  if(!nome){toast('Informe o nome do equipamento');document.getElementById('e_nome').focus();return;}
+  const aquis=num('e_aquis'), revenda=num('e_revenda'), anos=num('e_anos'), diasAno=num('e_diasAno'), horasDia=num('e_horasDia');
+  const totalHoras=anos*diasAno*horasDia;
+  const deprecHora=totalHoras>0?Math.max(0,(aquis-revenda))/totalHoras:0;
+  const temTinta=document.getElementById('e_temTinta').checked;
+  const custoPB=temTinta&&num('e_rendPB')>0?num('e_refilPB')/num('e_rendPB'):0;
+  const custoCor=temTinta&&num('e_rendCor')>0?num('e_refilCor')/num('e_rendCor'):0;
+  const id=val('e_id')||uid();
+  await dbPut('equipment',{id,nome,valorAquis:aquis,valorRevenda:revenda,anos,diasAno,horasDia,deprecHora,
+    temTinta,refilPB:num('e_refilPB'),rendPB:num('e_rendPB'),refilCor:num('e_refilCor'),rendCor:num('e_rendCor'),custoPB,custoCor});
+  closeModal();toast('Equipamento salvo');drawEquip();
+}
+async function delEquip(id,nome){
+  if(!confirm(`Excluir o equipamento "${nome}"?`))return;
+  await dbDel('equipment',id);
+  toast('Equipamento excluído');drawEquip();
+}
+
+/* ============================================================
+   MÓDULO: PRECIFICAÇÃO (Bloco 3)
+   Dois modos (rápido e avançado) sobre o mesmo motor de cálculo.
+   ============================================================ */
+let priceMode=null; // 'rapido' | 'avancado'
+let orc=null;       // orçamento em montagem
+
+function novoOrc(){
+  return {
+    clienteId:'', descricao:'',
+    materiais:[],   // {matId, nome, tipo, custoUnit, qtd}
+    equipamentos:[],// {eqId, nome, tipo:'tempo'|'pb'|'cor', minutos, paginas, deprecHora, custoPB, custoCor}
+    maoObraMin:0,   // minutos de trabalho manual
+    acabamentos:[], // {nome, valor}
+    margem: CONFIG?CONFIG.operacao.margemPadrao:50,
+    rateioFixo:true,// diluir despesa fixa
+    // arte (rápido/avançado): cobrança opcional de criação de arte
+    temArte:false, arteCobMod:'fixo', arteCobValor:0, arteCobMin:0,
+    // terceirizado:
+    custoSite:0,       // o que você paga no site
+    arteMod:'fixo',    // 'fixo' | 'tempo'
+    arteValor:0,       // valor fixo da arte
+    arteMin:0,         // minutos de arte (se por tempo)
+    lucroFixo:0,       // lucro fixo definido por você
+    prazoDias:0        // dias prometidos pelo site
+  };
+}
+
+/* ---------- MOTOR DE CÁLCULO (coração do sistema) ---------- */
+function calcOrc(o){
+  const op=CONFIG.operacao;
+  const valorHora = (op.diasUteis*op.horasDia)>0 ? op.proLabore/(op.diasUteis*op.horasDia) : 0;
+
+  // ===== MODO TERCEIRIZADO: lógica própria =====
+  if(o.modo==='terceirizado'||priceMode==='terceirizado'){
+    const custoSite=o.custoSite||0;
+    const custoArte = o.arteMod==='tempo' ? valorHora*((o.arteMin||0)/60) : (o.arteValor||0);
+    const custoTotal=custoSite+custoArte;
+    const lucro=o.lucroFixo||0;
+    const precoFinal=custoTotal+lucro;
+    const margemReal = precoFinal>0 ? (lucro/precoFinal)*100 : 0;
+    return {custoMat:0,custoEquip:0,custoMO:0,custoAcab:0,custoFixo:0,
+            custoSite,custoArte,custoTotal,precoFinal,lucro,margem:margemReal,valorHora,terceirizado:true};
+  }
+
+  // ===== MODOS RÁPIDO E AVANÇADO =====
+  // 1) Materiais
+  let custoMat=0;
+  o.materiais.forEach(m=>{ custoMat += (m.custoUnit||0)*(m.qtd||0); });
+
+  // 2) Equipamentos (depreciação por tempo + tinta por página)
+  let custoEquip=0;
+  o.equipamentos.forEach(e=>{
+    if(e.tipo==='tempo'){ custoEquip += (e.deprecHora||0)*((e.minutos||0)/60); }
+    else if(e.tipo==='pb'){ custoEquip += (e.custoPB||0)*(e.paginas||0); }
+    else if(e.tipo==='cor'){ custoEquip += (e.custoCor||0)*(e.paginas||0); }
+  });
+
+  // 3) Mão de obra (valor da hora × tempo)
+  const custoMO = valorHora*((o.maoObraMin||0)/60);
+
+  // 3b) Arte (cobrança opcional: fixa ou por tempo)
+  let custoArteProp=0;
+  if(o.temArte){
+    custoArteProp = o.arteCobMod==='tempo' ? valorHora*((o.arteCobMin||0)/60) : (o.arteCobValor||0);
+  }
+
+  // 4) Acabamentos
+  let custoAcab=0;
+  o.acabamentos.forEach(a=>{ custoAcab += (a.valor||0); });
+
+  // 5) Rateio de despesa fixa (custo fixo diluído por hora trabalhada no mês)
+  let custoFixo=0;
+  if(o.rateioFixo){
+    const totalFixo=(CONFIG.despesasFixas||[]).reduce((s,d)=>s+(parseFloat(d.valor)||0),0);
+    const horasMes=op.diasUteis*op.horasDia;
+    const fixoHora = horasMes>0 ? totalFixo/horasMes : 0;
+    let minutosTotais=(o.maoObraMin||0)+(o.temArte&&o.arteCobMod==='tempo'?(o.arteCobMin||0):0);
+    o.equipamentos.forEach(e=>{ if(e.tipo==='tempo') minutosTotais+=(e.minutos||0); });
+    custoFixo = fixoHora*(minutosTotais/60);
+  }
+
+  const custoTotal = custoMat+custoEquip+custoMO+custoArteProp+custoAcab+custoFixo;
+  const margem = o.margem||0;
+  const precoFinal = margem<100 ? custoTotal/(1-margem/100) : custoTotal;
+  const lucro = precoFinal-custoTotal;
+
+  return {custoMat,custoEquip,custoMO,custoArteProp,custoAcab,custoFixo,custoTotal,precoFinal,lucro,margem,valorHora};
+}
+
+/* ---------- Tela inicial: escolha do modo ---------- */
+async function renderPricingPage(main){
+  priceMode=null; orc=null;
+  main.innerHTML=`
+    <div class="page-head">
+      <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.pricing}</svg> Precificação</h2>
+      <p class="desc">Monte um orçamento e veja o preço justo na hora. Escolha o modo:</p>
+    </div>
+    <div class="mode-switch">
+      <button class="mode-card" onclick="startPricing('rapido')">
+        <div class="mc-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+        <h4>Modo rápido</h4>
+        <p>Para o balcão. Materiais + tempo de trabalho + margem. Em segundos você tem o preço.</p>
+      </button>
+      <button class="mode-card" onclick="startPricing('avancado')">
+        <div class="mc-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.settings}</svg></div>
+        <h4>Modo avançado</h4>
+        <p>Para trabalhos maiores. Inclui máquinas (depreciação e tinta), acabamentos e rateio de custos fixos.</p>
+      </button>
+      <button class="mode-card" onclick="startPricing('terceirizado')">
+        <div class="mc-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v-3a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3"/><circle cx="10" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <h4>Modo terceirizado</h4>
+        <p>Quando você revende: manda fazer num site, soma a arte (se houver) e põe seu lucro por cima.</p>
+      </button>
+    </div>
+    <div class="card">
+      <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.clock}</svg> Histórico de orçamentos</div>
+      <div class="card-sub">Orçamentos que você salvou. No próximo bloco eles poderão virar pedidos.</div>
+      <div id="orcHist"></div>
+    </div>`;
+  drawOrcHist();
+}
+
+async function drawOrcHist(){
+  const box=document.getElementById('orcHist');if(!box)return;
+  let list=(await dbAll('orders')).filter(o=>o.status==='orcamento');
+  const clients=await dbAll('clients');const cMap={};clients.forEach(c=>cMap[c.id]=c.nome);
+  list.sort((a,b)=>(b.criadoEm||0)-(a.criadoEm||0));
+  if(list.length===0){box.innerHTML=`<p style="color:var(--text-3);font-size:13px;padding:6px 0">Nenhum orçamento salvo ainda.</p>`;return;}
+  box.innerHTML=`<div class="tbl-scroll"><table>
+    <thead><tr><th>Descrição</th><th>Cliente</th><th class="t-right">Preço</th><th class="t-right">Ações</th></tr></thead>
+    <tbody>${list.map(o=>`
+      <tr>
+        <td><div class="t-main">${esc(o.descricao||'Sem descrição')}</div><div class="t-sub">${new Date(o.criadoEm).toLocaleDateString('pt-BR')}</div></td>
+        <td>${esc(cMap[o.clienteId]||'—')}</td>
+        <td class="t-right"><b style="color:var(--brand)">${fmt(o.precoFinal)}</b></td>
+        <td><div class="t-actions">
+          <button class="act-btn danger" onclick="delOrc('${o.id}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+        </div></td>
+      </tr>`).join('')}</tbody></table></div>`;
+}
+async function delOrc(id){
+  if(!confirm('Excluir este orçamento?'))return;
+  await dbDel('orders',id);
+  toast('Orçamento excluído');drawOrcHist();
+}
+
+/* ---------- Início do orçamento ---------- */
+async function startPricing(mode,editId){
+  priceMode=mode;
+  if(editId){
+    const ex=await dbGet('orders',editId);
+    orc={...novoOrc(),...ex};
+    orc._editId=editId;
+  }else{
+    orc=novoOrc();
+  }
+  if(mode==='terceirizado') renderTerceirizadoForm();
+  else renderPricingForm();
+}
+
+async function renderPricingForm(){
+  const main=document.getElementById('main');
+  const clients=(await dbAll('clients')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const cliOpts=`<option value="">— Selecione (opcional) —</option>`+clients.map(c=>`<option value="${c.id}" ${orc.clienteId===c.id?'selected':''}>${esc(c.nome)}</option>`).join('');
+  const avancado = priceMode==='avancado';
+
+  main.innerHTML=`
+    <div class="page-head-row">
+      <div class="page-head" style="margin:0">
+        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.pricing}</svg> ${orc._editId?'Editar orçamento':(avancado?'Orçamento avançado':'Orçamento rápido')}</h2>
+        <p class="desc">Vá adicionando o que o trabalho usa. O preço atualiza sozinho ao lado.</p>
+      </div>
+      <button class="btn-ghost" onclick="goTab('pricing')">← Voltar</button>
+    </div>
+    <div class="price-layout">
+      <div class="price-main">
+        <!-- Passo 1: Cliente e descrição -->
+        <div class="price-step">
+          <h3><span class="ps-num">1</span> Cliente e descrição</h3>
+          <div class="ps-sub">Quem é e o que será feito.</div>
+          <div class="form-grid">
+            <div class="form-row"><label>Cliente</label><select class="inp" id="o_cliente" onchange="orc.clienteId=this.value">${cliOpts}</select></div>
+            <div class="form-row" style="grid-column:1/-1"><label>Descrição do trabalho *</label><input class="inp" id="o_desc" value="${esc(orc.descricao)}" placeholder="Ex: 100 cartões de visita coloridos" oninput="orc.descricao=this.value"></div>
+          </div>
+        </div>
+
+        <!-- Passo 2: Materiais -->
+        <div class="price-step">
+          <h3><span class="ps-num">2</span> Materiais usados</h3>
+          <div class="ps-sub">Selecione do estoque e diga a quantidade. O custo entra sozinho.</div>
+          <div id="matPicker"></div>
+          <div id="matSelList" style="margin-top:6px"></div>
+        </div>
+
+        <!-- Passo 3: Mão de obra -->
+        <div class="price-step">
+          <h3><span class="ps-num">3</span> Seu tempo de trabalho</h3>
+          <div class="ps-sub">Quantos minutos você gasta nesse trabalho. Cobrado pelo valor da sua hora.</div>
+          <div class="item-add-row">
+            <div class="form-row"><label>Minutos de trabalho</label><input class="inp" type="number" id="o_mo" value="${orc.maoObraMin||''}" placeholder="0" oninput="orc.maoObraMin=parseFloat(this.value)||0;refreshSummary()"></div>
+          </div>
+        </div>
+
+        <!-- Passo de arte -->
+        <div class="price-step">
+          <h3><span class="ps-num">${avancado?'3b':'3b'}</span> Criação de arte</h3>
+          <div class="ps-sub">Se este trabalho exige criar arte e você quer cobrar por isso.</div>
+          <label style="display:flex;align-items:center;gap:9px;cursor:pointer;margin-bottom:6px">
+            <input type="checkbox" id="o_temArte" ${orc.temArte?'checked':''} onchange="toggleArteProp()" style="width:17px;height:17px;accent-color:var(--brand)">
+            <span style="font-size:13.5px;font-weight:500">Cobrar pela criação de arte</span>
+          </label>
+          <div id="arteCobBox" style="display:${orc.temArte?'block':'none'};margin-top:10px">
+            <div class="radio-grid" style="grid-template-columns:1fr 1fr;margin-bottom:12px">
+              <div class="radio-opt ${orc.arteCobMod==='fixo'?'sel':''}" id="ac_fixo" onclick="setArteCobMod('fixo')">
+                <div class="ro-title">Valor fixo</div><div class="ro-desc">Eu defino quanto cobrar</div>
+              </div>
+              <div class="radio-opt ${orc.arteCobMod==='tempo'?'sel':''}" id="ac_tempo" onclick="setArteCobMod('tempo')">
+                <div class="ro-title">Por hora</div><div class="ro-desc">Minutos × valor da minha hora</div>
+              </div>
+            </div>
+            <div id="arteCobFixoBox" style="display:${orc.arteCobMod==='fixo'?'block':'none'}">
+              <div class="item-add-row"><div class="form-row" style="max-width:200px"><label>Valor da arte</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="o_arteValor" value="${orc.arteCobValor||''}" placeholder="0,00" oninput="orc.arteCobValor=parseFloat(this.value)||0;refreshSummary()"></div></div></div>
+            </div>
+            <div id="arteCobTempoBox" style="display:${orc.arteCobMod==='tempo'?'block':'none'}">
+              <div class="item-add-row"><div class="form-row" style="max-width:200px"><label>Minutos de arte</label><input class="inp" type="number" id="o_arteMin" value="${orc.arteCobMin||''}" placeholder="0" oninput="orc.arteCobMin=parseFloat(this.value)||0;refreshSummary()"></div></div>
+            </div>
+          </div>
+        </div>
+
+        ${avancado?`
+        <!-- Passo 4: Equipamentos -->
+        <div class="price-step">
+          <h3><span class="ps-num">4</span> Máquinas utilizadas</h3>
+          <div class="ps-sub">Depreciação por tempo de uso, ou custo de tinta por página impressa.</div>
+          <div id="eqPicker"></div>
+          <div id="eqSelList" style="margin-top:6px"></div>
+        </div>
+
+        <!-- Passo 5: Serviços de terceiros / custos extras -->
+        <div class="price-step">
+          <h3><span class="ps-num">5</span> Serviços de terceiros / extras</h3>
+          <div class="ps-sub">Custos que não saem do seu estoque: serviço terceirizado, frete, taxa avulsa. Material de acabamento (BOPP, Polaseal) você adiciona no passo 2, em Materiais.</div>
+          <div class="item-add-row">
+            <div class="form-row"><label>Descrição</label><input class="inp" id="ac_nome" placeholder="Ex: Encadernação terceirizada"></div>
+            <div class="form-row" style="max-width:130px"><label>Custo (R$)</label><input class="inp" type="number" step="0.01" id="ac_valor" placeholder="0,00"></div>
+            <button class="btn-mini" onclick="addAcab()">+ Adicionar</button>
+          </div>
+          <div id="acSelList" style="margin-top:10px"></div>
+        </div>
+
+        <!-- Rateio -->
+        <div class="price-step">
+          <h3><span class="ps-num">6</span> Custos fixos</h3>
+          <div class="ps-sub">Diluir uma fração do aluguel, luz, etc. neste pedido (recomendado).</div>
+          <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
+            <input type="checkbox" id="o_rateio" ${orc.rateioFixo?'checked':''} onchange="orc.rateioFixo=this.checked;refreshSummary()" style="width:17px;height:17px;accent-color:var(--brand)">
+            <span style="font-size:13.5px">Incluir rateio de despesas fixas neste orçamento</span>
+          </label>
+        </div>
+        `:''}
+
+        <!-- Margem -->
+        <div class="price-step">
+          <h3><span class="ps-num">${avancado?'7':'4'}</span> Margem de lucro</h3>
+          <div class="ps-sub">Quanto de lucro sobre o preço final. Começa com seu padrão das Configurações.</div>
+          <div class="item-add-row">
+            <div class="form-row" style="max-width:160px"><label>Margem (%)</label><div class="inp-prefix"><input class="inp" type="number" id="o_margem" value="${orc.margem}" style="padding-left:12px" oninput="orc.margem=parseFloat(this.value)||0;refreshSummary()"><span style="left:auto;right:12px">%</span></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resumo lateral -->
+      <div class="price-summary">
+        <div class="sum-card">
+          <div class="sum-head"><h4>Resumo do preço</h4></div>
+          <div class="sum-body" id="sumBody"></div>
+        </div>
+        <button class="btn-save" style="width:100%;margin-top:14px;justify-content:center" onclick="saveOrcamento()">Salvar orçamento</button>
+      </div>
+    </div>`;
+
+  await drawMatPicker();
+  if(avancado) await drawEqPicker();
+  refreshSummary();
+}
+
+/* ---------- Seletor de materiais ---------- */
+async function drawMatPicker(){
+  const mats=(await dbAll('materials')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const box=document.getElementById('matPicker');if(!box)return;
+  if(mats.length===0){box.innerHTML=`<p style="color:var(--text-3);font-size:13px">Nenhum material cadastrado. Vá em Materiais primeiro.</p>`;return;}
+  const opts=mats.map(m=>`<option value="${m.id}">${esc(m.nome)} — ${fmt6(m.custoUnit)}/${(MAT_TIPOS[m.tipo]||MAT_TIPOS.folha).usoLabel}</option>`).join('');
+  box.innerHTML=`<div class="item-add-row">
+    <div class="form-row"><label>Material</label><select class="inp" id="mp_sel">${opts}</select></div>
+    <div class="form-row" style="max-width:120px"><label>Quantidade</label><input class="inp" type="number" step="0.01" id="mp_qtd" placeholder="0"></div>
+    <button class="btn-mini" onclick="addMatItem()">+ Adicionar</button>
+  </div>`;
+  drawMatSel();
+}
+async function addMatItem(){
+  const id=document.getElementById('mp_sel').value;
+  const qtd=num('mp_qtd');
+  if(qtd<=0){toast('Informe a quantidade');return;}
+  const m=await dbGet('materials',id);if(!m)return;
+  orc.materiais.push({matId:m.id,nome:m.nome,tipo:m.tipo,custoUnit:m.custoUnit,qtd,estoque:m.estoque||0,estoqueMin:m.estoqueMin||0});
+  document.getElementById('mp_qtd').value='';
+  drawMatSel();refreshSummary();
+}
+function drawMatSel(){
+  const box=document.getElementById('matSelList');if(!box)return;
+  if(orc.materiais.length===0){box.innerHTML='';return;}
+  box.innerHTML=orc.materiais.map((m,i)=>{
+    const t=MAT_TIPOS[m.tipo]||MAT_TIPOS.folha;
+    const subtotal=m.custoUnit*m.qtd;
+    const estoque=m.estoque||0;
+    const sobra=estoque-m.qtd;
+    let aviso='';
+    if(m.qtd>estoque){
+      aviso=`<div class="stock-warn">⚠ Estoque insuficiente: você tem ${estoque.toLocaleString('pt-BR')} ${t.usoLabel}${estoque!==1?'s':''}, vai faltar ${(m.qtd-estoque).toLocaleString('pt-BR')}</div>`;
+    } else if(m.estoqueMin>0 && sobra<=m.estoqueMin){
+      aviso=`<div class="stock-warn" style="color:#D97706">⚠ Após este trabalho o estoque fica baixo (${sobra.toLocaleString('pt-BR')} ${t.usoLabel}${sobra!==1?'s':''})</div>`;
+    }
+    return `<div class="sel-item">
+      <div class="si-info">
+        <div class="si-name">${esc(m.nome)}</div>
+        <div class="si-detail">${m.qtd} ${t.usoLabel}${m.qtd!==1?'s':''} × ${fmt6(m.custoUnit)}</div>
+        ${aviso}
+      </div>
+      <div class="si-val">${fmt(subtotal)}</div>
+      <button class="si-del" onclick="orc.materiais.splice(${i},1);drawMatSel();refreshSummary()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>`;
+  }).join('');
+}
+
+/* ---------- Seletor de equipamentos (modo avançado) ---------- */
+async function drawEqPicker(){
+  const eqs=(await dbAll('equipment')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const box=document.getElementById('eqPicker');if(!box)return;
+  if(eqs.length===0){box.innerHTML=`<p style="color:var(--text-3);font-size:13px">Nenhum equipamento cadastrado.</p>`;return;}
+  const opts=eqs.map(e=>`<option value="${e.id}">${esc(e.nome)}</option>`).join('');
+  box.innerHTML=`<div class="item-add-row">
+    <div class="form-row"><label>Equipamento</label><select class="inp" id="ep_sel" onchange="updateEqMode()">${opts}</select></div>
+    <div class="form-row" style="max-width:160px"><label>Cobrar por</label><select class="inp" id="ep_modo" onchange="updateEqUnit()"></select></div>
+    <div class="form-row" style="max-width:120px"><label id="ep_unitLabel">Minutos</label><input class="inp" type="number" step="0.01" id="ep_qtd" placeholder="0"></div>
+    <button class="btn-mini" onclick="addEqItem()">+ Adicionar</button>
+  </div>`;
+  await updateEqMode();
+  drawEqSel();
+}
+async function updateEqMode(){
+  const id=document.getElementById('ep_sel').value;
+  const e=await dbGet('equipment',id);
+  const modo=document.getElementById('ep_modo');
+  let opts=`<option value="tempo">Tempo (depreciação)</option>`;
+  if(e&&e.temTinta){opts+=`<option value="pb">Impressão P&B</option><option value="cor">Impressão colorida</option>`;}
+  modo.innerHTML=opts;
+  updateEqUnit();
+}
+function updateEqUnit(){
+  const modo=document.getElementById('ep_modo').value;
+  document.getElementById('ep_unitLabel').textContent = modo==='tempo'?'Minutos':'Páginas';
+}
+async function addEqItem(){
+  const id=document.getElementById('ep_sel').value;
+  const modo=document.getElementById('ep_modo').value;
+  const qtd=num('ep_qtd');
+  if(qtd<=0){toast('Informe a quantidade');return;}
+  const e=await dbGet('equipment',id);if(!e)return;
+  const item={eqId:e.id,nome:e.nome,tipo:modo,minutos:0,paginas:0,deprecHora:e.deprecHora,custoPB:e.custoPB,custoCor:e.custoCor};
+  if(modo==='tempo')item.minutos=qtd; else item.paginas=qtd;
+  orc.equipamentos.push(item);
+  document.getElementById('ep_qtd').value='';
+  drawEqSel();refreshSummary();
+}
+function drawEqSel(){
+  const box=document.getElementById('eqSelList');if(!box)return;
+  if(orc.equipamentos.length===0){box.innerHTML='';return;}
+  box.innerHTML=orc.equipamentos.map((e,i)=>{
+    let sub=0,detail='';
+    if(e.tipo==='tempo'){sub=e.deprecHora*(e.minutos/60);detail=`${e.minutos} min × ${fmt6(e.deprecHora)}/h (depreciação)`;}
+    else if(e.tipo==='pb'){sub=e.custoPB*e.paginas;detail=`${e.paginas} pág. P&B × ${fmt6(e.custoPB)}`;}
+    else{sub=e.custoCor*e.paginas;detail=`${e.paginas} pág. cor × ${fmt6(e.custoCor)}`;}
+    return `<div class="sel-item">
+      <div class="si-info"><div class="si-name">${esc(e.nome)}</div><div class="si-detail">${detail}</div></div>
+      <div class="si-val">${fmt(sub)}</div>
+      <button class="si-del" onclick="orc.equipamentos.splice(${i},1);drawEqSel();refreshSummary()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>`;
+  }).join('');
+}
+
+/* ---------- Acabamentos ---------- */
+function addAcab(){
+  const nome=val('ac_nome'), valor=num('ac_valor');
+  if(!nome){toast('Informe a descrição');return;}
+  orc.acabamentos.push({nome,valor});
+  document.getElementById('ac_nome').value='';document.getElementById('ac_valor').value='';
+  drawAcabSel();refreshSummary();
+}
+function drawAcabSel(){
+  const box=document.getElementById('acSelList');if(!box)return;
+  box.innerHTML=orc.acabamentos.map((a,i)=>`
+    <div class="sel-item">
+      <div class="si-info"><div class="si-name">${esc(a.nome)}</div></div>
+      <div class="si-val">${fmt(a.valor)}</div>
+      <button class="si-del" onclick="orc.acabamentos.splice(${i},1);drawAcabSel();refreshSummary()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>`).join('');
+}
+
+/* ---------- Atualiza o resumo lateral ---------- */
+function refreshSummary(){
+  const box=document.getElementById('sumBody');if(!box)return;
+  const c=calcOrc(orc);
+  const avancado=priceMode==='avancado';
+  let lines=`<div class="sum-line"><span class="sl-label">Materiais</span><span class="sl-val">${fmt(c.custoMat)}</span></div>`;
+  if(avancado) lines+=`<div class="sum-line"><span class="sl-label">Máquinas / tinta</span><span class="sl-val">${fmt(c.custoEquip)}</span></div>`;
+  lines+=`<div class="sum-line"><span class="sl-label">Mão de obra</span><span class="sl-val">${fmt(c.custoMO)}</span></div>`;
+  if(orc.temArte) lines+=`<div class="sum-line"><span class="sl-label">Criação de arte</span><span class="sl-val">${fmt(c.custoArteProp)}</span></div>`;
+  if(avancado){
+    lines+=`<div class="sum-line"><span class="sl-label">Serviços / extras</span><span class="sl-val">${fmt(c.custoAcab)}</span></div>`;
+    lines+=`<div class="sum-line"><span class="sl-label">Custo fixo (rateio)</span><span class="sl-val">${fmt(c.custoFixo)}</span></div>`;
+  }
+  box.innerHTML=lines+`
+    <div class="sum-divider"></div>
+    <div class="sum-line"><span class="sl-label" style="font-weight:600">Custo total</span><span class="sl-val">${fmt(c.custoTotal)}</span></div>
+    <div class="sum-line"><span class="sl-label">Lucro (${c.margem}%)</span><span class="sl-val" style="color:#1A8A4E">${fmt(c.lucro)}</span></div>
+    <div class="sum-total"><span class="st-label">PREÇO FINAL</span><span class="st-val">${fmt(c.precoFinal)}</span></div>
+    <div class="sum-margin">Sua hora vale ${fmt(c.valorHora)}</div>`;
+}
+function toggleArteProp(){
+  orc.temArte=document.getElementById('o_temArte').checked;
+  document.getElementById('arteCobBox').style.display=orc.temArte?'block':'none';
+  refreshSummary();
+}
+function setArteCobMod(m){
+  orc.arteCobMod=m;
+  document.getElementById('ac_fixo').classList.toggle('sel',m==='fixo');
+  document.getElementById('ac_tempo').classList.toggle('sel',m==='tempo');
+  document.getElementById('arteCobFixoBox').style.display=m==='fixo'?'block':'none';
+  document.getElementById('arteCobTempoBox').style.display=m==='tempo'?'block':'none';
+  refreshSummary();
+}
+
+/* ---------- Salvar orçamento ---------- */
+async function saveOrcamento(){
+  if(!orc.descricao.trim()){toast('Informe a descrição do trabalho');return;}
+  const c=calcOrc(orc);
+  const id=orc._editId||uid();
+  const existing=orc._editId?await dbGet('orders',id):null;
+  await dbPut('orders',{
+    ...(existing||{}),
+    id, status:existing?existing.status:'orcamento', modo:priceMode,
+    clienteId:orc.clienteId, descricao:orc.descricao,
+    materiais:orc.materiais, equipamentos:orc.equipamentos,
+    maoObraMin:orc.maoObraMin, acabamentos:orc.acabamentos,
+    margem:orc.margem, rateioFixo:orc.rateioFixo,
+    temArte:orc.temArte, arteCobMod:orc.arteCobMod, arteCobValor:orc.arteCobValor, arteCobMin:orc.arteCobMin,
+    custoSite:orc.custoSite, arteMod:orc.arteMod, arteValor:orc.arteValor,
+    arteMin:orc.arteMin, lucroFixo:orc.lucroFixo, prazoDias:orc.prazoDias,
+    custoTotal:c.custoTotal, precoFinal:c.precoFinal, lucro:c.lucro,
+    criadoEm:existing?existing.criadoEm:Date.now()
+  });
+  toast(orc._editId?'Orçamento atualizado!':'Orçamento salvo!');
+  goTab('pricing');
+}
+
+/* ---------- Tela do modo TERCEIRIZADO ---------- */
+async function renderTerceirizadoForm(){
+  const main=document.getElementById('main');
+  const clients=(await dbAll('clients')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const cliOpts=`<option value="">— Selecione (opcional) —</option>`+clients.map(c=>`<option value="${c.id}" ${orc.clienteId===c.id?'selected':''}>${esc(c.nome)}</option>`).join('');
+  main.innerHTML=`
+    <div class="page-head-row">
+      <div class="page-head" style="margin:0">
+        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v-3a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3"/><circle cx="10" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> ${orc._editId?'Editar terceirizado':'Orçamento terceirizado'}</h2>
+        <p class="desc">Você revende: paga o site, soma a arte se houver, e define seu lucro.</p>
+      </div>
+      <button class="btn-ghost" onclick="goTab('pricing')">← Voltar</button>
+    </div>
+    <div class="price-layout">
+      <div class="price-main">
+        <div class="price-step">
+          <h3><span class="ps-num">1</span> Cliente e descrição</h3>
+          <div class="ps-sub">Quem é e o que será feito.</div>
+          <div class="form-grid">
+            <div class="form-row"><label>Cliente</label><select class="inp" id="o_cliente" onchange="orc.clienteId=this.value">${cliOpts}</select></div>
+            <div class="form-row" style="grid-column:1/-1"><label>Descrição do trabalho *</label><input class="inp" id="o_desc" value="${esc(orc.descricao)}" placeholder="Ex: 100 cartões de visita (gráfica online)" oninput="orc.descricao=this.value"></div>
+          </div>
+        </div>
+
+        <div class="price-step">
+          <h3><span class="ps-num">2</span> Custo no site / fornecedor</h3>
+          <div class="ps-sub">Quanto você vai pagar na gráfica online ou fornecedor que vai produzir.</div>
+          <div class="item-add-row">
+            <div class="form-row" style="max-width:200px"><label>Valor que você paga *</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="t_site" value="${orc.custoSite||''}" placeholder="0,00" oninput="orc.custoSite=parseFloat(this.value)||0;refreshSummaryT()"></div></div>
+          </div>
+        </div>
+
+        <div class="price-step">
+          <h3><span class="ps-num">3</span> Produção de arte</h3>
+          <div class="ps-sub">Se você precisar criar a arte. Escolha como cobrar.</div>
+          <div class="radio-grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+            <div class="radio-opt ${orc.arteMod==='fixo'?'sel':''}" id="t_artFixo" onclick="setArteMod('fixo')">
+              <div class="ro-title">Valor fixo</div><div class="ro-desc">Eu digito quanto cobro pela arte</div>
+            </div>
+            <div class="radio-opt ${orc.arteMod==='tempo'?'sel':''}" id="t_artTempo" onclick="setArteMod('tempo')">
+              <div class="ro-title">Pelo meu tempo</div><div class="ro-desc">Minutos × valor da minha hora</div>
+            </div>
+          </div>
+          <div id="t_arteFixoBox" style="display:${orc.arteMod==='fixo'?'block':'none'}">
+            <div class="item-add-row"><div class="form-row" style="max-width:200px"><label>Valor da arte</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="t_arteValor" value="${orc.arteValor||''}" placeholder="0,00" oninput="orc.arteValor=parseFloat(this.value)||0;refreshSummaryT()"></div></div></div>
+          </div>
+          <div id="t_arteTempoBox" style="display:${orc.arteMod==='tempo'?'block':'none'}">
+            <div class="item-add-row"><div class="form-row" style="max-width:200px"><label>Minutos de arte</label><input class="inp" type="number" id="t_arteMin" value="${orc.arteMin||''}" placeholder="0" oninput="orc.arteMin=parseFloat(this.value)||0;refreshSummaryT()"></div></div>
+          </div>
+        </div>
+
+        <div class="price-step">
+          <h3><span class="ps-num">4</span> Prazo do fornecedor</h3>
+          <div class="ps-sub">Quantos dias o site promete. Some seu tempo de arte se quiser.</div>
+          <div class="item-add-row">
+            <div class="form-row" style="max-width:200px"><label>Prazo em dias</label><input class="inp" type="number" id="t_prazo" value="${orc.prazoDias||''}" placeholder="0" oninput="orc.prazoDias=parseFloat(this.value)||0"></div>
+          </div>
+        </div>
+
+        <div class="price-step">
+          <h3><span class="ps-num">5</span> Seu lucro</h3>
+          <div class="ps-sub">Quanto você quer ganhar nessa venda. Valor fixo, em reais.</div>
+          <div class="item-add-row">
+            <div class="form-row" style="max-width:200px"><label>Lucro desejado</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="t_lucro" value="${orc.lucroFixo||''}" placeholder="0,00" oninput="orc.lucroFixo=parseFloat(this.value)||0;refreshSummaryT()"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="price-summary">
+        <div class="sum-card">
+          <div class="sum-head"><h4>Resumo do preço</h4></div>
+          <div class="sum-body" id="sumBodyT"></div>
+        </div>
+        <button class="btn-save" style="width:100%;margin-top:14px;justify-content:center" onclick="saveOrcamento()">Salvar orçamento</button>
+      </div>
+    </div>`;
+  refreshSummaryT();
+}
+function setArteMod(m){
+  orc.arteMod=m;
+  document.getElementById('t_artFixo').classList.toggle('sel',m==='fixo');
+  document.getElementById('t_artTempo').classList.toggle('sel',m==='tempo');
+  document.getElementById('t_arteFixoBox').style.display=m==='fixo'?'block':'none';
+  document.getElementById('t_arteTempoBox').style.display=m==='tempo'?'block':'none';
+  refreshSummaryT();
+}
+function refreshSummaryT(){
+  const box=document.getElementById('sumBodyT');if(!box)return;
+  const c=calcOrc(orc);
+  let arteLine = orc.arteMod==='tempo'
+    ? `<div class="sum-line"><span class="sl-label">Arte (${orc.arteMin||0} min)</span><span class="sl-val">${fmt(c.custoArte)}</span></div>`
+    : `<div class="sum-line"><span class="sl-label">Arte (fixo)</span><span class="sl-val">${fmt(c.custoArte)}</span></div>`;
+  box.innerHTML=`
+    <div class="sum-line"><span class="sl-label">Custo no site</span><span class="sl-val">${fmt(c.custoSite)}</span></div>
+    ${arteLine}
+    <div class="sum-divider"></div>
+    <div class="sum-line"><span class="sl-label" style="font-weight:600">Custo total</span><span class="sl-val">${fmt(c.custoTotal)}</span></div>
+    <div class="sum-line"><span class="sl-label">Seu lucro</span><span class="sl-val" style="color:#1A8A4E">${fmt(c.lucro)}</span></div>
+    <div class="sum-total"><span class="st-label">PREÇO FINAL</span><span class="st-val">${fmt(c.precoFinal)}</span></div>
+    ${orc.prazoDias>0?`<div class="sum-margin">Prazo: ${orc.prazoDias} dia${orc.prazoDias!==1?'s':''}</div>`:''}`;
+}
+
+/* ============================================================
+   MÓDULO: DASHBOARD E PEDIDOS (Bloco 4)
+   Fluxo: orçamento -> aprovar (baixa estoque, entrada opcional)
+          -> produção -> pronto -> entregue -> dar baixa (pago)
+   ============================================================ */
+const STATUS_FLOW=['design','producao','pronto','entregue'];
+const STATUS_LABEL={orcamento:'Orçamento',design:'Arte a fazer',producao:'Em produção',pronto:'Pronto',entregue:'Entregue'};
+const STATUS_CLASS={orcamento:'st-orcamento',design:'st-design',producao:'st-producao',pronto:'st-pronto',entregue:'st-entregue'};
+
+function isLate(o){
+  if(!o.prazo||o.status==='entregue')return false;
+  return new Date(o.prazo+'T23:59:59')<new Date();
+}
+function isToday(o){
+  if(!o.prazo)return false;
+  const hoje=new Date().toISOString().slice(0,10);
+  return o.prazo===hoje;
+}
+
+/* ---------- DASHBOARD ---------- */
+async function renderDashboardPage(main){
+  const all=await dbAll('orders');
+  const pedidos=all.filter(o=>o.status!=='orcamento');
+  const clients=await dbAll('clients');const cMap={};clients.forEach(c=>cMap[c.id]=c.nome);
+
+  const aFazer=pedidos.filter(o=>o.status==='producao').length;
+  const emDesign=pedidos.filter(o=>o.status==='design').length;
+  const atrasados=pedidos.filter(o=>isLate(o)).length;
+  const hoje=pedidos.filter(o=>isToday(o)&&o.status!=='entregue').length;
+  const prontos=pedidos.filter(o=>o.status==='pronto').length;
+  const aReceber=pedidos.filter(o=>o.pago!=='sim').reduce((s,o)=>s+((o.precoFinal||0)-(o.entrada||0)),0);
+
+  // próximos prazos (não entregues), ordenados
+  const fila=pedidos.filter(o=>o.status!=='entregue').sort((a,b)=>{
+    if(!a.prazo)return 1;if(!b.prazo)return -1;return a.prazo.localeCompare(b.prazo);
+  }).slice(0,8);
+
+  main.innerHTML=`
+    <div class="page-head">
+      <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.dashboard}</svg> Dashboard</h2>
+      <p class="desc">Sua produção de hoje, num olhar.</p>
+    </div>
+    <div class="dash-cards">
+      <div class="dash-card" style="border-color:rgba(147,51,234,.3)"><div class="dc-top"><svg viewBox="0 0 24 24" fill="none" stroke="#9333EA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg> Arte a fazer</div><div class="dc-num" style="color:#9333EA">${emDesign}</div></div>
+      <div class="dash-card"><div class="dc-top"><svg viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.box}</svg> Em produção</div><div class="dc-num">${aFazer}</div></div>
+      <div class="dash-card late"><div class="dc-top"><svg viewBox="0 0 24 24" fill="none" stroke="#E5484D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Atrasados</div><div class="dc-num">${atrasados}</div></div>
+      <div class="dash-card today"><div class="dc-top"><svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.clock}</svg> Para hoje</div><div class="dc-num">${hoje}</div></div>
+      <div class="dash-card ready"><div class="dc-top"><svg viewBox="0 0 24 24" fill="none" stroke="#1A8A4E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Prontos</div><div class="dc-num">${prontos}</div></div>
+      <div class="dash-card money"><div class="dc-top"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.finance}</svg> A receber</div><div class="dc-num" style="font-size:22px;margin-top:9px">${fmt(aReceber)}</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.clock}</svg> Próximas entregas</div>
+      <div class="card-sub">O que está na fila, por ordem de prazo.</div>
+      ${fila.length===0?`<div class="empty-state" style="padding:40px 20px"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON.orders}</svg><h3>Nenhum pedido na fila</h3><p>Aprove um orçamento na aba Pedidos para ele aparecer aqui.</p></div>`:`
+      <div class="tbl-scroll"><table>
+        <thead><tr><th>Trabalho</th><th>Cliente</th><th>Prazo</th><th>Status</th><th class="t-right">Valor</th></tr></thead>
+        <tbody>${fila.map(o=>{
+          let prazoTxt='—';
+          if(o.prazo){
+            const d=new Date(o.prazo+'T12:00:00').toLocaleDateString('pt-BR');
+            if(isLate(o))prazoTxt=`<span class="due-late">${d} (atrasado)</span>`;
+            else if(isToday(o))prazoTxt=`<span class="due-soon">${d} (hoje)</span>`;
+            else prazoTxt=d;
+          }
+          return `<tr style="cursor:pointer" onclick="orderDetail('${o.id}')">
+            <td><div class="t-main">${esc(o.descricao)}</div></td>
+            <td>${esc(cMap[o.clienteId]||'—')}</td>
+            <td>${prazoTxt}</td>
+            <td><span class="status-badge ${STATUS_CLASS[o.status]}">${STATUS_LABEL[o.status]}</span></td>
+            <td class="t-right"><b>${fmt(o.precoFinal)}</b></td>
+          </tr>`;}).join('')}</tbody></table></div>`}
+    </div>`;
+}
+
+/* ---------- PEDIDOS ---------- */
+let orderFilter='todos';
+async function renderOrdersPage(main){
+  main.innerHTML=`
+    <div class="page-head-row">
+      <div class="page-head" style="margin:0">
+        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.orders}</svg> Pedidos</h2>
+        <p class="desc">Orçamentos e pedidos. Aprove um orçamento para iniciar a produção.</p>
+      </div>
+      <button class="btn-add" onclick="goTab('pricing')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Novo orçamento
+      </button>
+    </div>
+    <div class="filter-pills" id="orderPills">
+      ${[['todos','Todos'],['orcamento','Orçamentos'],['design','Arte a fazer'],['producao','Em produção'],['pronto','Prontos'],['entregue','Entregues']].map(([k,l])=>
+        `<button class="pill ${orderFilter===k?'active':''}" onclick="setOrderFilter('${k}')">${l}</button>`).join('')}
+    </div>
+    <div id="ordersTable"></div>`;
+  drawOrders();
+}
+function setOrderFilter(f){orderFilter=f;document.querySelectorAll('#orderPills .pill').forEach(p=>p.classList.remove('active'));event.target.classList.add('active');drawOrders();}
+
+async function drawOrders(){
+  let list=await dbAll('orders');
+  const clients=await dbAll('clients');const cMap={};clients.forEach(c=>cMap[c.id]=c.nome);
+  if(orderFilter!=='todos')list=list.filter(o=>o.status===orderFilter);
+  list.sort((a,b)=>(b.criadoEm||0)-(a.criadoEm||0));
+  const box=document.getElementById('ordersTable');if(!box)return;
+  if(list.length===0){
+    box.innerHTML=`<div class="tbl-wrap"><div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON.orders}</svg>
+      <h3>Nenhum pedido aqui</h3><p>Crie um orçamento na aba Precificação.</p>
+    </div></div>`;return;
+  }
+  box.innerHTML=`<div class="tbl-wrap"><div class="tbl-scroll"><table>
+    <thead><tr><th>Trabalho</th><th>Cliente</th><th>Status</th><th>Pagamento</th><th class="t-right">Valor</th><th class="t-right">Ações</th></tr></thead>
+    <tbody>${list.map(o=>{
+      let payTag='';
+      if(o.status!=='orcamento'){
+        if(o.pago==='sim')payTag='<span class="pay-tag pay-sim">Pago</span>';
+        else if(o.entrada>0)payTag=`<span class="pay-tag pay-parcial">Entrada ${fmt(o.entrada)}</span>`;
+        else payTag='<span class="pay-tag pay-nao">A receber</span>';
+      }
+      return `<tr style="cursor:pointer" onclick="orderDetail('${o.id}')">
+        <td><div class="t-main">${esc(o.descricao)}</div><div class="t-sub">${new Date(o.criadoEm).toLocaleDateString('pt-BR')}</div></td>
+        <td>${esc(cMap[o.clienteId]||'—')}</td>
+        <td><span class="status-badge ${STATUS_CLASS[o.status]}">${STATUS_LABEL[o.status]}</span></td>
+        <td>${payTag||'<span style="color:var(--text-3)">—</span>'}</td>
+        <td class="t-right"><b style="color:var(--brand)">${fmt(o.precoFinal)}</b></td>
+        <td onclick="event.stopPropagation()"><div class="t-actions">
+          ${o.status==='orcamento'?`<button class="btn-mini" onclick="approveModal('${o.id}')">Aprovar</button>`:''}
+          ${o.status==='orcamento'?`<button class="act-btn" onclick="editOrc('${o.id}')" title="Editar orçamento"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>`:''}
+          <button class="act-btn" onclick="pdfModal('${o.id}')" title="Gerar PDF" style="color:var(--brand);border-color:var(--brand)"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></button>
+          <button class="act-btn" onclick="orderDetail('${o.id}')" title="Ver detalhes"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          <button class="act-btn danger" onclick="event.stopPropagation();delOrder('${o.id}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+        </div></td>
+      </tr>`;}).join('')}</tbody></table></div></div>`;
+}
+async function delOrder(id){
+  if(!confirm('Excluir este pedido? Não desfaz a baixa de estoque já feita.'))return;
+  await dbDel('orders',id);
+  toast('Excluído');drawOrders();
+}
+
+/* ---------- Aprovar orçamento ---------- */
+async function approveModal(id){
+  const o=await dbGet('orders',id);if(!o)return;
+  openModal(`
+    <div class="modal-head">
+      <h3>Aprovar orçamento</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="ap_id" value="${o.id}">
+      <p style="font-size:13.5px;color:var(--text-2);margin-bottom:18px">"${esc(o.descricao)}" — <b style="color:var(--brand)">${fmt(o.precoFinal)}</b></p>
+      <div class="form-grid">
+        <div class="form-row"><label>Ajustar valor final <span class="help">(se negociou)</span></label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="ap_valor" value="${o.precoFinal.toFixed(2)}"></div></div>
+        <div class="form-row"><label>Entrada / sinal recebido <span class="help">(opcional)</span></label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="ap_entrada" value="" placeholder="0,00"></div></div>
+        <div class="form-row"><label>Prazo de entrega</label><input class="inp" type="date" id="ap_prazo" value="${o.prazo||''}"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:9px;cursor:pointer;margin-top:16px;padding:12px 14px;background:var(--surface-3);border-radius:var(--radius-sm)">
+        <input type="checkbox" id="ap_design" style="width:17px;height:17px;accent-color:var(--brand)">
+        <span style="font-size:13.5px"><b>Este pedido precisa de arte/design</b> — entra primeiro em "Arte a fazer"</span>
+      </label>
+      <div style="margin-top:16px;padding:13px 15px;background:var(--surface-3);border-radius:var(--radius-sm);font-size:12.5px;color:var(--text-2)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px">${ICON.materials}</svg>
+        Ao aprovar, os materiais usados serão <b>baixados do estoque</b> automaticamente.
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="confirmApprove()">Aprovar e iniciar produção</button>
+    </div>`);
+}
+async function confirmApprove(){
+  const id=val('ap_id');
+  const o=await dbGet('orders',id);
+  o.precoFinal=num('ap_valor');
+  o.entrada=num('ap_entrada');
+  o.prazo=val('ap_prazo');
+  o.pago=o.entrada>=o.precoFinal?'sim':(o.entrada>0?'parcial':'nao');
+  const precisaDesign=document.getElementById('ap_design').checked;
+  o.status=precisaDesign?'design':'producao';
+  o.aprovadoEm=Date.now();
+  // Baixa de estoque
+  for(const m of (o.materiais||[])){
+    if(!m.matId)continue;
+    const mat=await dbGet('materials',m.matId);
+    if(mat){mat.estoque=Math.max(0,(mat.estoque||0)-(m.qtd||0));await dbPut('materials',mat);}
+  }
+  await dbPut('orders',o);
+  // Registra a entrada como receita automática
+  if(o.entrada>0){
+    await dbPut('transactions',{
+      id:uid(),tipo:'receita',descricao:'Entrada — '+o.descricao,
+      valor:o.entrada,categoria:'Venda de pedido',banco:'caixa',
+      clienteId:o.clienteId,pedidoId:o.id,data:new Date().toISOString().slice(0,10),
+      confirmada:true,auto:true,criadoEm:Date.now()
+    });
+  }
+  closeModal();toast('Pedido aprovado!');
+  if(currentTab==='orders')drawOrders(); else renderPage(currentTab);
+}
+
+/* ---------- Detalhe do pedido + ações ---------- */
+async function orderDetail(id){
+  const o=await dbGet('orders',id);if(!o)return;
+  const clients=await dbAll('clients');const cli=clients.find(c=>c.id===o.clienteId);
+  const t=MAT_TIPOS;
+  const isOrc=o.status==='orcamento';
+  const restante=(o.precoFinal||0)-(o.entrada||0);
+
+  // Próxima ação de status
+  let nextBtn='';
+  const idx=STATUS_FLOW.indexOf(o.status);
+  if(idx>=0&&idx<STATUS_FLOW.length-1){
+    const next=STATUS_FLOW[idx+1];
+    nextBtn=`<button class="btn-save" onclick="advanceStatus('${o.id}','${next}')">Marcar como ${STATUS_LABEL[next]}</button>`;
+  }
+  // Botão de voltar status (retroceder)
+  let backBtn='';
+  if(idx>0){
+    const prev=STATUS_FLOW[idx-1];
+    backBtn=`<button class="btn-ghost" onclick="advanceStatus('${o.id}','${prev}')">← ${STATUS_LABEL[prev]}</button>`;
+  }
+
+  let payBtn='';
+  if(!isOrc&&o.pago!=='sim'){
+    payBtn=`<button class="btn-mini" style="padding:11px 18px" onclick="payModal('${o.id}')">Dar baixa no pagamento</button>`;
+  }
+
+  // Composição (rápido/avançado vs terceirizado)
+  let comp='';
+  if(o.modo==='terceirizado'){
+    const cArte = o.arteMod==='tempo' ? (calcOrc(o).custoArte) : (o.arteValor||0);
+    comp=`<div class="sum-line"><span class="sl-label">Custo no site</span><span class="sl-val">${fmt(o.custoSite||0)}</span></div>
+      ${cArte>0?`<div class="sum-line"><span class="sl-label">Arte</span><span class="sl-val">${fmt(cArte)}</span></div>`:''}`;
+  }else{
+    comp=`${(o.materiais||[]).map(m=>`<div class="sum-line"><span class="sl-label">${esc(m.nome)} (${m.qtd} ${(t[m.tipo]||t.folha).usoLabel}${m.qtd!==1?'s':''})</span><span class="sl-val">${fmt(m.custoUnit*m.qtd)}</span></div>`).join('')}
+      ${(o.equipamentos||[]).map(e=>{let s=e.tipo==='tempo'?e.deprecHora*(e.minutos/60):(e.tipo==='pb'?e.custoPB*e.paginas:e.custoCor*e.paginas);return `<div class="sum-line"><span class="sl-label">${esc(e.nome)}</span><span class="sl-val">${fmt(s)}</span></div>`;}).join('')}
+      ${o.maoObraMin>0?`<div class="sum-line"><span class="sl-label">Mão de obra (${o.maoObraMin} min)</span><span class="sl-val">${fmt(calcOrc(o).custoMO)}</span></div>`:''}
+      ${o.temArte?`<div class="sum-line"><span class="sl-label">Criação de arte</span><span class="sl-val">${fmt(calcOrc(o).custoArteProp)}</span></div>`:''}
+      ${(o.acabamentos||[]).map(a=>`<div class="sum-line"><span class="sl-label">${esc(a.nome)}</span><span class="sl-val">${fmt(a.valor)}</span></div>`).join('')}`;
+  }
+
+  openModal(`
+    <div class="modal-head">
+      <h3>${esc(o.descricao)}</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <span class="status-badge ${STATUS_CLASS[o.status]}">${STATUS_LABEL[o.status]}</span>
+        ${!isOrc?(o.pago==='sim'?'<span class="pay-tag pay-sim" style="padding:4px 11px">Pago</span>':o.entrada>0?`<span class="pay-tag pay-parcial" style="padding:4px 11px">Entrada ${fmt(o.entrada)}</span>`:'<span class="pay-tag pay-nao" style="padding:4px 11px">A receber</span>'):''}
+      </div>
+      <div class="sum-line"><span class="sl-label">Cliente</span><span class="sl-val">${esc(cli?cli.nome:'—')}</span></div>
+      ${o.prazo?`<div class="sum-line"><span class="sl-label">Prazo</span><span class="sl-val ${isLate(o)?'due-late':''}">${new Date(o.prazo+'T12:00:00').toLocaleDateString('pt-BR')}</span></div>`:''}
+      <div class="sum-divider"></div>
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:8px">Composição</div>
+      ${comp}
+      <div class="sum-divider"></div>
+      <div class="sum-line"><span class="sl-label">Custo total</span><span class="sl-val">${fmt(o.custoTotal)}</span></div>
+      <div class="sum-total"><span class="st-label">PREÇO FINAL</span><span class="st-val" style="font-size:23px">${fmt(o.precoFinal)}</span></div>
+      ${!isOrc&&o.pago!=='sim'?`<div class="sum-margin" style="font-size:13px;margin-top:8px">Falta receber: <b style="color:#E5484D">${fmt(restante)}</b></div>`:''}
+    </div>
+    <div class="modal-foot" style="flex-wrap:wrap">
+      <button class="btn-ghost" onclick="closeModal();pdfModal('${o.id}')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>PDF</button>
+      ${isOrc?`<button class="btn-ghost" onclick="closeModal();editOrc('${o.id}')">Editar</button><button class="btn-save" onclick="closeModal();approveModal('${o.id}')">Aprovar orçamento</button>`:`${backBtn}${payBtn}${nextBtn}`}
+    </div>`);
+}
+
+/* ---------- Editar orçamento ---------- */
+async function editOrc(id){
+  const o=await dbGet('orders',id);if(!o)return;
+  if(o.status!=='orcamento'){toast('Só orçamentos podem ser editados');return;}
+  startPricing(o.modo||'rapido',id);
+}
+async function advanceStatus(id,target){
+  const o=await dbGet('orders',id);
+  o.status=target;
+  if(target==='entregue')o.entregueEm=Date.now();
+  await dbPut('orders',o);
+  closeModal();toast(`Status: ${STATUS_LABEL[target]}`);
+  if(currentTab==='orders')drawOrders(); else renderPage(currentTab);
+}
+
+/* ---------- Dar baixa no pagamento ---------- */
+async function payModal(id){
+  const o=await dbGet('orders',id);
+  const restante=(o.precoFinal||0)-(o.entrada||0);
+  openModal(`
+    <div class="modal-head">
+      <h3>Dar baixa no pagamento</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="pay_id" value="${o.id}">
+      <div class="calc-box" style="margin:0 0 16px"><div class="label">Falta receber</div><div class="val">${fmt(restante)}</div></div>
+      <p style="font-size:13.5px;color:var(--text-2)">Confirma que recebeu o restante (${fmt(restante)})? O pedido será marcado como <b>pago</b>.</p>
+      <p style="font-size:12.5px;color:var(--text-3);margin-top:10px">No próximo bloco (Financeiro), esse recebimento entrará automaticamente nas suas receitas.</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="confirmPay()">Confirmar recebimento</button>
+    </div>`);
+}
+async function confirmPay(){
+  const id=val('pay_id');
+  const o=await dbGet('orders',id);
+  const restante=(o.precoFinal||0)-(o.entrada||0);
+  o.entrada=o.precoFinal;
+  o.pago='sim';
+  o.pagoEm=Date.now();
+  await dbPut('orders',o);
+  // Registra o restante recebido como receita
+  if(restante>0){
+    await dbPut('transactions',{
+      id:uid(),tipo:'receita',descricao:'Pagamento — '+o.descricao,
+      valor:restante,categoria:'Venda de pedido',banco:'caixa',
+      clienteId:o.clienteId,pedidoId:o.id,data:new Date().toISOString().slice(0,10),
+      confirmada:true,auto:true,criadoEm:Date.now()
+    });
+  }
+  closeModal();toast('Pagamento recebido!');
+  if(currentTab==='orders')drawOrders(); else renderPage(currentTab);
+}
+
+/* ============================================================
+   MÓDULO: FINANCEIRO (Bloco 5)
+   Receitas e despesas, bancos, categorias. Recebe automaticamente
+   os pagamentos dados nos pedidos.
+   ============================================================ */
+let finFilter='todos', finMonth=new Date().toISOString().slice(0,7), finSub='transacoes';
+
+async function renderFinancePage(main){
+  // Antes de desenhar, gera as despesas recorrentes do mês atual se ainda não geradas
+  await gerarRecorrentes();
+  main.innerHTML=`
+    <div class="page-head-row">
+      <div class="page-head" style="margin:0">
+        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.finance}</svg> Financeiro</h2>
+        <p class="desc">Controle completo: caixa, contas a pagar e a receber, despesas fixas.</p>
+      </div>
+    </div>
+    <div class="subtabs">
+      <button class="subtab ${finSub==='transacoes'?'active':''}" onclick="goFinSub('transacoes')">Caixa (transações)</button>
+      <button class="subtab ${finSub==='receber'?'active':''}" onclick="goFinSub('receber')">Contas a receber</button>
+      <button class="subtab ${finSub==='pagar'?'active':''}" onclick="goFinSub('pagar')">Contas a pagar</button>
+      <button class="subtab ${finSub==='recorrentes'?'active':''}" onclick="goFinSub('recorrentes')">Despesas fixas</button>
+    </div>
+    <div id="finContent"></div>`;
+  goFinSub(finSub,true);
+}
+function goFinSub(s,keep){
+  finSub=s;
+  if(!keep){document.querySelectorAll('.subtabs .subtab').forEach(t=>t.classList.remove('active'));event.target.classList.add('active');}
+  if(s==='transacoes')renderFinTransacoes();
+  else if(s==='receber')renderContasReceber();
+  else if(s==='pagar')renderContasPagar();
+  else if(s==='recorrentes')renderRecorrentes();
+}
+
+async function renderFinTransacoes(){
+  const txs=await dbAll('transactions');
+  const doMes=txs.filter(t=>(t.data||'').slice(0,7)===finMonth);
+  const receitas=doMes.filter(t=>t.tipo==='receita').reduce((s,t)=>s+(t.valor||0),0);
+  const despesas=doMes.filter(t=>t.tipo==='despesa').reduce((s,t)=>s+(t.valor||0),0);
+  const saldo=receitas-despesas;
+  const saldoGeral=txs.filter(t=>t.confirmada!==false).reduce((s,t)=>s+(t.tipo==='receita'?(t.valor||0):-(t.valor||0)),0);
+  const [ano,mes]=finMonth.split('-');
+  const mesNome=new Date(ano,mes-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  document.getElementById('finContent').innerHTML=`
+    <div class="page-head-row" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="act-btn" onclick="changeMonth(-1)"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div style="font-weight:600;font-size:15px;text-transform:capitalize;min-width:150px;text-align:center">${mesNome}</div>
+        <button class="act-btn" onclick="changeMonth(1)"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+      </div>
+      <button class="btn-add" onclick="txModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nova transação</button>
+    </div>
+    <div class="fin-cards">
+      <div class="fin-card rec"><div class="fc-label">Receitas do mês</div><div class="fc-val">${fmt(receitas)}</div></div>
+      <div class="fin-card desp"><div class="fc-label">Despesas do mês</div><div class="fc-val">${fmt(despesas)}</div></div>
+      <div class="fin-card saldo"><div class="fc-label">Resultado do mês</div><div class="fc-val">${fmt(saldo)}</div></div>
+      <div class="fin-card"><div class="fc-label">Saldo geral acumulado</div><div class="fc-val">${fmt(saldoGeral)}</div></div>
+    </div>
+    <div class="filter-pills" id="finPills">
+      ${[['todos','Todas'],['receita','Receitas'],['despesa','Despesas']].map(([k,l])=>`<button class="pill ${finFilter===k?'active':''}" onclick="setFinFilter('${k}')">${l}</button>`).join('')}
+    </div>
+    <div id="txTable"></div>`;
+  drawTx();
+}
+
+function changeMonth(d){
+  const [a,m]=finMonth.split('-').map(Number);
+  const dt=new Date(a,m-1+d,1);
+  finMonth=dt.toISOString().slice(0,7);
+  renderFinTransacoes();
+}
+function setFinFilter(f){finFilter=f;document.querySelectorAll('#finPills .pill').forEach(p=>p.classList.remove('active'));event.target.classList.add('active');drawTx();}
+
+async function drawTx(){
+  let txs=await dbAll('transactions');
+  const clients=await dbAll('clients');const cMap={};clients.forEach(c=>cMap[c.id]=c.nome);
+  txs=txs.filter(t=>(t.data||'').slice(0,7)===finMonth);
+  if(finFilter!=='todos')txs=txs.filter(t=>t.tipo===finFilter);
+  txs.sort((a,b)=>(b.data||'').localeCompare(a.data||'')||(b.criadoEm||0)-(a.criadoEm||0));
+  const box=document.getElementById('txTable');if(!box)return;
+  if(txs.length===0){
+    box.innerHTML=`<div class="tbl-wrap"><div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON.finance}</svg>
+      <h3>Nenhuma transação neste mês</h3><p>Lance uma receita ou despesa, ou dê baixa num pedido para aparecer aqui.</p>
+    </div></div>`;return;
+  }
+  box.innerHTML=`<div class="tbl-wrap"><div class="tbl-scroll"><table>
+    <thead><tr><th></th><th>Descrição</th><th>Categoria</th><th>Data</th><th class="t-right">Valor</th><th class="t-right">Ações</th></tr></thead>
+    <tbody>${txs.map(t=>{
+      const rec=t.tipo==='receita';
+      return `<tr>
+        <td><span class="tx-type ${rec?'tx-rec':'tx-desp'}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${rec?'<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>':'<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>'}</svg></span></td>
+        <td><div class="t-main">${esc(t.descricao)}${t.auto?'<span class="tag-auto">auto</span>':''}</div>${t.clienteId&&cMap[t.clienteId]?`<div class="t-sub">${esc(cMap[t.clienteId])}</div>`:''}</td>
+        <td><span class="badge">${esc(t.categoria||'—')}</span></td>
+        <td>${t.data?new Date(t.data+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td>
+        <td class="t-right ${rec?'val-rec':'val-desp'}">${rec?'+':'−'} ${fmt(t.valor)}</td>
+        <td><div class="t-actions">
+          <button class="act-btn danger" onclick="delTx('${t.id}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+        </div></td>
+      </tr>`;}).join('')}</tbody></table></div></div>`;
+}
+async function delTx(id){
+  if(!confirm('Excluir esta transação?'))return;
+  await dbDel('transactions',id);
+  toast('Excluída');renderFinTransacoes();
+}
+
+async function txModal(){
+  const cats=[...(CONFIG.catReceita||[]),...(CONFIG.catDespesa||[])];
+  const clients=(await dbAll('clients')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  openModal(`
+    <div class="modal-head">
+      <h3>Nova transação</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="radio-grid" style="grid-template-columns:1fr 1fr;margin-bottom:16px">
+        <div class="radio-opt sel" id="tx_rec" onclick="setTxType('receita')"><div class="ro-title" style="color:#1A8A4E">↑ Receita</div><div class="ro-desc">Entrou dinheiro</div></div>
+        <div class="radio-opt" id="tx_desp" onclick="setTxType('despesa')"><div class="ro-title" style="color:#E5484D">↓ Despesa</div><div class="ro-desc">Saiu dinheiro</div></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-row" style="grid-column:1/-1"><label>Descrição *</label><input class="inp" id="tx_desc" placeholder="Ex: Compra de papel"></div>
+        <div class="form-row"><label>Valor *</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="tx_valor" placeholder="0,00"></div></div>
+        <div class="form-row"><label>Data</label><input class="inp" type="date" id="tx_data" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div class="form-row"><label>Categoria</label><select class="inp" id="tx_cat">${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div>
+        <div class="form-row"><label>Cliente <span class="help">(opcional)</span></label><select class="inp" id="tx_cli"><option value="">—</option>${clients.map(c=>`<option value="${c.id}">${esc(c.nome)}</option>`).join('')}</select></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveTx()">Registrar</button>
+    </div>`);
+  window._txType='receita';
+  setTimeout(()=>document.getElementById('tx_desc').focus(),100);
+}
+function setTxType(t){
+  window._txType=t;
+  document.getElementById('tx_rec').classList.toggle('sel',t==='receita');
+  document.getElementById('tx_desp').classList.toggle('sel',t==='despesa');
+  const sel=document.getElementById('tx_cat');
+  const cats=t==='receita'?(CONFIG.catReceita||[]):(CONFIG.catDespesa||[]);
+  sel.innerHTML=cats.map(c=>`<option>${esc(c)}</option>`).join('');
+}
+async function saveTx(){
+  const desc=val('tx_desc'),valor=num('tx_valor');
+  if(!desc){toast('Informe a descrição');return;}
+  if(valor<=0){toast('Informe o valor');return;}
+  await dbPut('transactions',{
+    id:uid(),tipo:window._txType,descricao:desc,valor,
+    categoria:val('tx_cat'),banco:'caixa',clienteId:val('tx_cli'),
+    data:val('tx_data'),confirmada:true,criadoEm:Date.now()
+  });
+  closeModal();toast('Transação registrada');renderFinTransacoes();
+}
+
+/* ============================================================
+   CONTAS A RECEBER (pedidos não pagos + lançamentos manuais)
+   ============================================================ */
+function billStatus(b){
+  if(b.pago)return 'pago';
+  if(b.venc && new Date(b.venc+'T23:59:59')<new Date())return 'atrasado';
+  return 'pendente';
+}
+const BILL_BADGE={pago:'pay-sim',pendente:'pay-parcial',atrasado:'pay-nao'};
+const BILL_LABEL={pago:'Pago',pendente:'Pendente',atrasado:'Atrasado'};
+
+async function renderContasReceber(){
+  const orders=await dbAll('orders');
+  const clients=await dbAll('clients');const cMap={};clients.forEach(c=>cMap[c.id]=c.nome);
+  const manual=(await dbAll('bills')).filter(b=>b.tipo==='receber');
+  // Pedidos com saldo a receber
+  const pedidosReceber=orders.filter(o=>o.status!=='orcamento'&&o.pago!=='sim').map(o=>({
+    id:'ped_'+o.id, pedidoId:o.id, tipo:'receber', origem:'pedido',
+    descricao:o.descricao, clienteId:o.clienteId,
+    valor:(o.precoFinal||0)-(o.entrada||0), venc:o.prazo||'', pago:false
+  }));
+  const todos=[...pedidosReceber,...manual.map(b=>({...b,origem:'manual'}))];
+  const pendente=todos.filter(b=>!b.pago).reduce((s,b)=>s+(b.valor||0),0);
+  const atrasado=todos.filter(b=>billStatus(b)==='atrasado').reduce((s,b)=>s+(b.valor||0),0);
+
+  document.getElementById('finContent').innerHTML=`
+    <div class="page-head-row" style="margin-bottom:14px">
+      <div></div>
+      <button class="btn-add" onclick="billModal('receber')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Lançar a receber</button>
+    </div>
+    <div class="fin-cards">
+      <div class="fin-card rec"><div class="fc-label">Total a receber</div><div class="fc-val">${fmt(pendente)}</div></div>
+      <div class="fin-card desp"><div class="fc-label">Em atraso</div><div class="fc-val">${fmt(atrasado)}</div></div>
+    </div>
+    ${todos.length===0?`<div class="tbl-wrap"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON.finance}</svg><h3>Nada a receber</h3><p>Pedidos não pagos e lançamentos manuais aparecem aqui.</p></div></div>`:`
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <thead><tr><th>Descrição</th><th>Cliente</th><th>Vencimento</th><th>Status</th><th class="t-right">Valor</th><th class="t-right">Ações</th></tr></thead>
+      <tbody>${todos.sort((a,b)=>(a.venc||'z').localeCompare(b.venc||'z')).map(b=>{
+        const st=billStatus(b);
+        return `<tr>
+          <td><div class="t-main">${esc(b.descricao)}</div>${b.origem==='pedido'?'<div class="t-sub">do pedido</div>':''}</td>
+          <td>${esc(cMap[b.clienteId]||'—')}</td>
+          <td class="${st==='atrasado'?'due-late':''}">${b.venc?new Date(b.venc+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td>
+          <td><span class="pay-tag ${BILL_BADGE[st]}" style="padding:4px 11px">${BILL_LABEL[st]}</span></td>
+          <td class="t-right"><b style="color:#1A8A4E">${fmt(b.valor)}</b></td>
+          <td><div class="t-actions">
+            ${b.origem==='pedido'?`<button class="btn-mini" onclick="payModal('${b.pedidoId}')">Receber</button>`:`<button class="btn-mini" onclick="receberBill('${b.id}')">Receber</button><button class="act-btn danger" onclick="delBill('${b.id}','receber')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>`}
+          </div></td>
+        </tr>`;}).join('')}</tbody></table></div></div>`}`;
+}
+async function receberBill(id){
+  const b=await dbGet('bills',id);
+  b.pago=true;b.pagoEm=Date.now();
+  await dbPut('bills',b);
+  // vira receita no caixa
+  await dbPut('transactions',{id:uid(),tipo:'receita',descricao:'Recebimento — '+b.descricao,valor:b.valor,categoria:'Outras receitas',banco:'caixa',clienteId:b.clienteId||'',data:new Date().toISOString().slice(0,10),confirmada:true,auto:true,criadoEm:Date.now()});
+  toast('Recebido!');renderContasReceber();
+}
+
+/* ============================================================
+   CONTAS A PAGAR
+   ============================================================ */
+async function renderContasPagar(){
+  const suppliers=await dbAll('suppliers');const sMap={};suppliers.forEach(s=>sMap[s.id]=s.nome);
+  const bills=(await dbAll('bills')).filter(b=>b.tipo==='pagar');
+  const pendente=bills.filter(b=>!b.pago).reduce((s,b)=>s+(b.valor||0),0);
+  const atrasado=bills.filter(b=>billStatus(b)==='atrasado').reduce((s,b)=>s+(b.valor||0),0);
+
+  document.getElementById('finContent').innerHTML=`
+    <div class="page-head-row" style="margin-bottom:14px">
+      <div></div>
+      <button class="btn-add" onclick="billModal('pagar')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Lançar a pagar</button>
+    </div>
+    <div class="fin-cards">
+      <div class="fin-card desp"><div class="fc-label">Total a pagar</div><div class="fc-val">${fmt(pendente)}</div></div>
+      <div class="fin-card desp"><div class="fc-label">Em atraso</div><div class="fc-val">${fmt(atrasado)}</div></div>
+    </div>
+    ${bills.length===0?`<div class="tbl-wrap"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON.finance}</svg><h3>Nada a pagar</h3><p>Lance suas contas com fornecedores, boletos e compromissos futuros.</p></div></div>`:`
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <thead><tr><th>Descrição</th><th>Fornecedor</th><th>Vencimento</th><th>Status</th><th class="t-right">Valor</th><th class="t-right">Ações</th></tr></thead>
+      <tbody>${bills.sort((a,b)=>(a.venc||'z').localeCompare(b.venc||'z')).map(b=>{
+        const st=billStatus(b);
+        return `<tr>
+          <td><div class="t-main">${esc(b.descricao)}</div></td>
+          <td>${esc(sMap[b.fornecedorId]||'—')}</td>
+          <td class="${st==='atrasado'?'due-late':''}">${b.venc?new Date(b.venc+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td>
+          <td><span class="pay-tag ${BILL_BADGE[st]}" style="padding:4px 11px">${BILL_LABEL[st]}</span></td>
+          <td class="t-right"><b style="color:#E5484D">${fmt(b.valor)}</b></td>
+          <td><div class="t-actions">
+            ${!b.pago?`<button class="btn-mini" onclick="pagarBill('${b.id}')">Pagar</button>`:''}
+            <button class="act-btn" onclick="billModal('pagar','${b.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="act-btn danger" onclick="delBill('${b.id}','pagar')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+          </div></td>
+        </tr>`;}).join('')}</tbody></table></div></div>`}`;
+}
+async function pagarBill(id){
+  const b=await dbGet('bills',id);
+  b.pago=true;b.pagoEm=Date.now();
+  await dbPut('bills',b);
+  await dbPut('transactions',{id:uid(),tipo:'despesa',descricao:'Pagamento — '+b.descricao,valor:b.valor,categoria:b.categoria||'Outras despesas',banco:'caixa',data:new Date().toISOString().slice(0,10),confirmada:true,auto:true,criadoEm:Date.now()});
+  toast('Conta paga!');renderContasPagar();
+}
+async function billModal(tipo,id){
+  let b={id:'',tipo,descricao:'',valor:0,venc:'',fornecedorId:'',clienteId:'',categoria:'Outras despesas'};
+  if(id){const f=await dbGet('bills',id);if(f)b=f;}
+  const suppliers=(await dbAll('suppliers')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const clients=(await dbAll('clients')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const cats=tipo==='pagar'?(CONFIG.catDespesa||[]):(CONFIG.catReceita||[]);
+  openModal(`
+    <div class="modal-head">
+      <h3>${id?'Editar conta':(tipo==='pagar'?'Nova conta a pagar':'Novo a receber')}</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="b_id" value="${esc(b.id)}">
+      <div class="form-grid">
+        <div class="form-row" style="grid-column:1/-1"><label>Descrição *</label><input class="inp" id="b_desc" value="${esc(b.descricao)}" placeholder="${tipo==='pagar'?'Ex: Boleto fornecedor de papel':'Ex: Cliente vai pagar dia 10'}"></div>
+        <div class="form-row"><label>Valor *</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="b_valor" value="${b.valor||''}" placeholder="0,00"></div></div>
+        <div class="form-row"><label>Vencimento</label><input class="inp" type="date" id="b_venc" value="${b.venc||''}"></div>
+        ${tipo==='pagar'?`
+          <div class="form-row"><label>Fornecedor <span class="help">(opcional)</span></label><select class="inp" id="b_forn"><option value="">—</option>${suppliers.map(s=>`<option value="${s.id}" ${b.fornecedorId===s.id?'selected':''}>${esc(s.nome)}</option>`).join('')}</select></div>
+          <div class="form-row"><label>Categoria</label><select class="inp" id="b_cat">${cats.map(c=>`<option ${b.categoria===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+        `:`
+          <div class="form-row"><label>Cliente <span class="help">(opcional)</span></label><select class="inp" id="b_cli"><option value="">—</option>${clients.map(c=>`<option value="${c.id}" ${b.clienteId===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}</select></div>
+        `}
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveBill('${tipo}')">Salvar</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('b_desc').focus(),100);
+}
+async function saveBill(tipo){
+  const desc=val('b_desc'),valor=num('b_valor');
+  if(!desc){toast('Informe a descrição');return;}
+  if(valor<=0){toast('Informe o valor');return;}
+  const id=val('b_id')||uid();
+  const ex=val('b_id')?await dbGet('bills',id):null;
+  const rec={...(ex||{}),id,tipo,descricao:desc,valor,venc:val('b_venc'),pago:ex?ex.pago:false,criadoEm:ex?ex.criadoEm:Date.now()};
+  if(tipo==='pagar'){rec.fornecedorId=document.getElementById('b_forn').value;rec.categoria=document.getElementById('b_cat').value;}
+  else{rec.clienteId=document.getElementById('b_cli').value;}
+  await dbPut('bills',rec);
+  closeModal();toast('Conta salva');
+  tipo==='pagar'?renderContasPagar():renderContasReceber();
+}
+async function delBill(id,tipo){
+  if(!confirm('Excluir esta conta?'))return;
+  await dbDel('bills',id);
+  toast('Excluída');tipo==='pagar'?renderContasPagar():renderContasReceber();
+}
+
+/* ============================================================
+   DESPESAS FIXAS / RECORRENTES (lançam sozinhas todo mês)
+   ============================================================ */
+async function gerarRecorrentes(){
+  const recs=await dbAll('recurring');
+  const mesAtual=new Date().toISOString().slice(0,7);
+  for(const r of recs){
+    if(!r.ativo)continue;
+    if(r.ultimoMes===mesAtual)continue;
+    // lança a despesa do mês atual
+    const dia=String(r.dia||1).padStart(2,'0');
+    const data=mesAtual+'-'+dia;
+    await dbPut('transactions',{id:uid(),tipo:'despesa',descricao:r.nome+' (fixa)',valor:r.valor,categoria:'Despesa fixa',banco:'caixa',data,confirmada:true,auto:true,recorrenteId:r.id,criadoEm:Date.now()});
+    r.ultimoMes=mesAtual;
+    await dbPut('recurring',r);
+  }
+}
+async function renderRecorrentes(){
+  const recs=await dbAll('recurring');
+  const total=recs.filter(r=>r.ativo).reduce((s,r)=>s+(r.valor||0),0);
+  document.getElementById('finContent').innerHTML=`
+    <div class="page-head-row" style="margin-bottom:14px">
+      <div></div>
+      <button class="btn-add" onclick="recModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nova despesa fixa</button>
+    </div>
+    <div style="padding:13px 16px;background:var(--surface-3);border-radius:var(--radius-sm);font-size:12.5px;color:var(--text-2);margin-bottom:18px">
+      Estas despesas são <b>lançadas automaticamente todo mês</b> no seu caixa (aluguel, luz, internet, salários...). Diferente das "despesas p/ precificação" das Configurações, que servem só para calcular preço.
+    </div>
+    <div class="fin-cards">
+      <div class="fin-card desp"><div class="fc-label">Total fixo por mês</div><div class="fc-val">${fmt(total)}</div></div>
+    </div>
+    ${recs.length===0?`<div class="tbl-wrap"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON.finance}</svg><h3>Nenhuma despesa fixa</h3><p>Cadastre aluguel, energia, internet — elas entram no caixa sozinhas a cada mês.</p></div></div>`:`
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <thead><tr><th>Despesa</th><th>Dia do vencimento</th><th>Status</th><th class="t-right">Valor</th><th class="t-right">Ações</th></tr></thead>
+      <tbody>${recs.map(r=>`
+        <tr>
+          <td><div class="t-main">${esc(r.nome)}</div></td>
+          <td>Todo dia ${r.dia||1}</td>
+          <td>${r.ativo?'<span class="pay-tag pay-sim" style="padding:4px 11px">Ativa</span>':'<span class="pay-tag" style="padding:4px 11px;background:var(--surface-3);color:var(--text-3)">Pausada</span>'}</td>
+          <td class="t-right"><b style="color:#E5484D">${fmt(r.valor)}</b></td>
+          <td><div class="t-actions">
+            <button class="act-btn" onclick="toggleRec('${r.id}')" title="${r.ativo?'Pausar':'Ativar'}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${r.ativo?'<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>':'<polygon points="5 3 19 12 5 21 5 3"/>'}</svg></button>
+            <button class="act-btn" onclick="recModal('${r.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="act-btn danger" onclick="delRec('${r.id}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+          </div></td>
+        </tr>`).join('')}</tbody></table></div></div>`}`;
+}
+async function recModal(id){
+  let r={id:'',nome:'',valor:0,dia:5,ativo:true};
+  if(id){const f=await dbGet('recurring',id);if(f)r=f;}
+  openModal(`
+    <div class="modal-head">
+      <h3>${id?'Editar despesa fixa':'Nova despesa fixa'}</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="r_id" value="${esc(r.id)}">
+      <div class="form-grid">
+        <div class="form-row" style="grid-column:1/-1"><label>Nome da despesa *</label><input class="inp" id="r_nome" value="${esc(r.nome)}" placeholder="Ex: Aluguel, Energia, Internet"></div>
+        <div class="form-row"><label>Valor mensal *</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="r_valor" value="${r.valor||''}" placeholder="0,00"></div></div>
+        <div class="form-row"><label>Dia do vencimento</label><input class="inp" type="number" min="1" max="31" id="r_dia" value="${r.dia||5}"></div>
+      </div>
+      <p class="help" style="margin-top:12px">Será lançada automaticamente no caixa todo mês neste dia.</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveRec()">Salvar</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('r_nome').focus(),100);
+}
+async function saveRec(){
+  const nome=val('r_nome'),valor=num('r_valor');
+  if(!nome){toast('Informe o nome');return;}
+  if(valor<=0){toast('Informe o valor');return;}
+  const id=val('r_id')||uid();
+  const ex=val('r_id')?await dbGet('recurring',id):null;
+  await dbPut('recurring',{...(ex||{}),id,nome,valor,dia:num('r_dia')||5,ativo:ex?ex.ativo:true});
+  closeModal();toast('Despesa fixa salva');renderRecorrentes();
+}
+async function toggleRec(id){
+  const r=await dbGet('recurring',id);r.ativo=!r.ativo;await dbPut('recurring',r);
+  toast(r.ativo?'Ativada':'Pausada');renderRecorrentes();
+}
+async function delRec(id){
+  if(!confirm('Excluir esta despesa fixa? Os lançamentos já feitos no caixa permanecem.'))return;
+  await dbDel('recurring',id);
+  toast('Excluída');renderRecorrentes();
+}
+
+/* ============================================================
+   MÓDULO: RELATÓRIOS (Bloco 5)
+   ============================================================ */
+async function renderReportsPage(main){
+  const txs=await dbAll('transactions');
+  const orders=await dbAll('orders');
+  const clients=await dbAll('clients');const cMap={};clients.forEach(c=>cMap[c.id]=c.nome);
+
+  const totRec=txs.filter(t=>t.tipo==='receita').reduce((s,t)=>s+(t.valor||0),0);
+  const totDesp=txs.filter(t=>t.tipo==='despesa').reduce((s,t)=>s+(t.valor||0),0);
+  const lucro=totRec-totDesp;
+
+  // Receita por categoria
+  const porCat={};
+  txs.filter(t=>t.tipo==='receita').forEach(t=>{porCat[t.categoria]=(porCat[t.categoria]||0)+(t.valor||0);});
+  const despCat={};
+  txs.filter(t=>t.tipo==='despesa').forEach(t=>{despCat[t.categoria]=(despCat[t.categoria]||0)+(t.valor||0);});
+
+  // Pedidos: a receber
+  const pedidos=orders.filter(o=>o.status!=='orcamento');
+  const aReceber=pedidos.filter(o=>o.pago!=='sim').reduce((s,o)=>s+((o.precoFinal||0)-(o.entrada||0)),0);
+  const faturado=pedidos.reduce((s,o)=>s+(o.precoFinal||0),0);
+  const ticket=pedidos.length>0?faturado/pedidos.length:0;
+
+  // Top clientes
+  const porCliente={};
+  pedidos.forEach(o=>{if(o.clienteId)porCliente[o.clienteId]=(porCliente[o.clienteId]||0)+(o.precoFinal||0);});
+  const topCli=Object.entries(porCliente).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  const barCat=(obj,cor)=>{
+    const max=Math.max(...Object.values(obj),1);
+    const items=Object.entries(obj).sort((a,b)=>b[1]-a[1]);
+    if(items.length===0)return '<p style="color:var(--text-3);font-size:13px">Sem dados ainda.</p>';
+    return items.map(([k,v])=>`
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px"><span>${esc(k)}</span><b>${fmt(v)}</b></div>
+        <div style="height:7px;background:var(--surface-3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${(v/max*100)}%;background:${cor};border-radius:4px"></div></div>
+      </div>`).join('');
+  };
+
+  main.innerHTML=`
+    <div class="page-head">
+      <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.reports}</svg> Relatórios</h2>
+      <p class="desc">A saúde do seu negócio, desde o começo.</p>
+    </div>
+    <div class="fin-cards">
+      <div class="fin-card rec"><div class="fc-label">Receita total</div><div class="fc-val">${fmt(totRec)}</div></div>
+      <div class="fin-card desp"><div class="fc-label">Despesa total</div><div class="fc-val">${fmt(totDesp)}</div></div>
+      <div class="fin-card saldo"><div class="fc-label">Lucro acumulado</div><div class="fc-val">${fmt(lucro)}</div></div>
+      <div class="fin-card"><div class="fc-label">A receber (pendente)</div><div class="fc-val" style="color:#D97706">${fmt(aReceber)}</div></div>
+    </div>
+    <div class="fin-cards">
+      <div class="fin-card"><div class="fc-label">Pedidos realizados</div><div class="fc-val">${pedidos.length}</div></div>
+      <div class="fin-card"><div class="fc-label">Total faturado</div><div class="fc-val">${fmt(faturado)}</div></div>
+      <div class="fin-card"><div class="fc-label">Ticket médio</div><div class="fc-val">${fmt(ticket)}</div></div>
+    </div>
+    <div class="fin-layout">
+      <div class="card">
+        <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg> Receitas por categoria</div>
+        <div class="card-sub">De onde vem seu dinheiro.</div>
+        ${barCat(porCat,'#1A8A4E')}
+      </div>
+      <div class="card">
+        <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg> Despesas por categoria</div>
+        <div class="card-sub">Para onde ele vai.</div>
+        ${barCat(despCat,'#E5484D')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.clients}</svg> Seus melhores clientes</div>
+      <div class="card-sub">Quem mais faz pedidos com você.</div>
+      ${topCli.length===0?'<p style="color:var(--text-3);font-size:13px">Sem dados ainda.</p>':`
+      <div class="tbl-scroll"><table>
+        <thead><tr><th>Cliente</th><th class="t-right">Total em pedidos</th></tr></thead>
+        <tbody>${topCli.map(([id,v])=>`<tr><td class="t-main">${esc(cMap[id]||'—')}</td><td class="t-right"><b style="color:var(--brand)">${fmt(v)}</b></td></tr>`).join('')}</tbody>
+      </table></div>`}
+    </div>`;
+}
+
+/* ============================================================
+   GERADOR DE PDF DO ORÇAMENTO (estilo moderno)
+   ============================================================ */
+let pdfItens=[];
+async function pdfModal(orderId){
+  const o=await dbGet('orders',orderId);if(!o)return;
+  const clients=await dbAll('clients');const cli=clients.find(c=>c.id===o.clienteId);
+  // Itens iniciais: a descrição do trabalho como 1 item com o preço final
+  pdfItens=[{desc:o.descricao||'Serviço',qtd:1,valor:o.precoFinal||0}];
+  window._pdfOrder=o;window._pdfCli=cli;
+  openModal(`
+    <div class="modal-head">
+      <h3>Gerar orçamento em PDF</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--text-2);margin-bottom:16px">Revise os itens que o cliente vai ver. Seus custos internos não aparecem — só os valores finais.</p>
+      <div class="modal-section-label" style="margin-top:0">Itens do orçamento</div>
+      <div id="pdfItensList"></div>
+      <button class="btn-save" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong);margin-top:4px;padding:8px 14px;font-size:13px" onclick="addPdfItem()">+ Adicionar item</button>
+      <div class="modal-section-label">Prazo de entrega</div>
+      <div class="form-row"><input class="inp" id="pdf_prazo" value="${o.prazo?new Date(o.prazo+'T12:00:00').toLocaleDateString('pt-BR'):(o.prazoDias?o.prazoDias+' dias':'')}" placeholder="Ex: 15/06/2026 ou 3 dias úteis"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="gerarPDF()">Gerar PDF</button>
+    </div>`);
+  drawPdfItens();
+}
+function drawPdfItens(){
+  const box=document.getElementById('pdfItensList');if(!box)return;
+  box.innerHTML=pdfItens.map((it,i)=>`
+    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+      <input class="inp" value="${esc(it.desc)}" placeholder="Descrição" oninput="pdfItens[${i}].desc=this.value" style="flex:1">
+      <input class="inp" type="number" value="${it.qtd}" oninput="pdfItens[${i}].qtd=parseFloat(this.value)||0;sumPdf()" style="width:70px" title="Qtd">
+      <div class="inp-prefix" style="width:120px"><span>R$</span><input class="inp" type="number" step="0.01" value="${it.valor}" oninput="pdfItens[${i}].valor=parseFloat(this.value)||0;sumPdf()"></div>
+      <button class="act-btn danger" onclick="pdfItens.splice(${i},1);drawPdfItens()" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>`).join('')+`<div style="text-align:right;font-size:14px;font-weight:600;margin-top:6px">Total: <span style="color:var(--brand)" id="pdfTotal">${fmt(pdfItens.reduce((s,it)=>s+it.qtd*it.valor,0))}</span></div>`;
+}
+function addPdfItem(){pdfItens.push({desc:'',qtd:1,valor:0});drawPdfItens();}
+function sumPdf(){const el=document.getElementById('pdfTotal');if(el)el.textContent=fmt(pdfItens.reduce((s,it)=>s+it.qtd*it.valor,0));}
+
+async function gerarPDF(){
+  const o=window._pdfOrder, cli=window._pdfCli, e=CONFIG.empresa;
+  if(!window.jspdf){toast('Conecte-se à internet para gerar o PDF');return;}
+  const prazo=val('pdf_prazo');
+  const total=pdfItens.reduce((s,it)=>s+it.qtd*it.valor,0);
+  const numOrc='ORC-'+(o.id||'').slice(-6).toUpperCase();
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF({unit:'pt',format:'a4'});
+  const W=595.28, H=841.89;
+  const ROXO=[102,0,255], CINZA_BLOCO=[228,228,231], CINZA_ITEM=[236,236,238], PRETO=[26,26,26], CINZA_TXT=[136,136,144];
+  const yf=pt=>H-pt;
+  function img(dataurl,x,y,w,h){
+    if(!dataurl)return false;
+    try{const fmtImg=dataurl.indexOf('image/png')>=0?'PNG':'JPEG';doc.addImage(dataurl,fmtImg,x,y,w,h);return true;}catch(err){return false;}
+  }
+
+  // FUNDO BRANCO
+  doc.setFillColor(255,255,255);doc.rect(0,0,W,H,'F');
+
+  // FAIXA ROXA TOPO
+  doc.setFillColor(...ROXO);doc.rect(0,0,W,200,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold');doc.setFontSize(18);
+  doc.text((e.nome||'Mais Print').toUpperCase(),40,75);
+  doc.setFontSize(54);
+  doc.text('Orçamento',36,150);
+
+  // CAIXA DO LOGO
+  doc.setFillColor(255,255,255);doc.roundedRect(W-160,85,120,60,4,4,'F');
+  if(!img(e.logo, W-155, 90, 110, 50)){
+    doc.setTextColor(170,170,170);doc.setFont('helvetica','normal');doc.setFontSize(9);
+    doc.text('logotipo',W-100,118,{align:'center'});
+  }
+
+  // BLOCO CLIENTE
+  const bx=40, by=200, bw=360, bh=95;
+  doc.setFillColor(...ROXO);doc.roundedRect(bx,by+15,30,bh,12,12,'F');
+  doc.setFillColor(...CINZA_BLOCO);doc.roundedRect(bx+15,by+15,bw-15,bh,12,12,'F');
+  doc.setTextColor(...CINZA_TXT);doc.setFont('helvetica','bold');doc.setFontSize(9);
+  doc.text('CLIENTE',bx+45,by+37);
+  doc.setTextColor(...PRETO);doc.setFont('helvetica','bold');doc.setFontSize(16);
+  doc.text(cli&&cli.nome?cli.nome:'—',bx+45,by+59);
+  doc.setTextColor(85,85,85);doc.setFont('helvetica','italic');doc.setFontSize(8.5);
+  let cy=by+75;
+  if(cli&&cli.doc){doc.text(cli.doc,bx+45,cy);cy+=12;}
+  if(cli&&cli.fone){doc.text(cli.fone,bx+45,cy);}
+
+  // BLOCO PRAZO
+  const px=415, py=215, pw=145, ph=80;
+  doc.setFillColor(...ROXO);doc.roundedRect(px,py,pw,ph,14,14,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(11);
+  doc.text('PRAZO DE ENTREGA',px+pw/2,py+30,{align:'center'});
+  doc.setFontSize(16);
+  doc.text(prazo||'A combinar',px+pw/2,py+56,{align:'center'});
+
+  // PÍLULA ITENS
+  doc.setFillColor(...ROXO);doc.roundedRect(40,362,200,38,16,16,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(13);
+  doc.text('ITENS DO ORÇAMENTO',60,386);
+
+  // CABEÇALHO TABELA
+  let ty=440;
+  doc.setFillColor(...ROXO);doc.roundedRect(40,ty-34,W-80,34,8,8,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(12);
+  const col_desc=170, col_qnt=355, col_val=448, col_tot=528;
+  doc.text('DESCRIÇÃO',col_desc,ty-12,{align:'center'});
+  doc.text('QNT',col_qnt,ty-12,{align:'center'});
+  doc.text('VALOR UN',col_val,ty-12,{align:'center'});
+  doc.text('TOTAL',col_tot,ty-12,{align:'center'});
+
+  // LINHAS DE ITENS
+  let ry=ty, rh=34;
+  pdfItens.forEach((it,i)=>{
+    const sub=it.qtd*it.valor;
+    if(i%2===0){doc.setFillColor(...CINZA_ITEM);doc.roundedRect(48,ry+4,W-96,rh-6,10,10,'F');}
+    doc.setTextColor(...PRETO);doc.setFont('helvetica','normal');doc.setFontSize(11);
+    let d=String(it.desc); if(d.length>40)d=d.substring(0,38)+'…';
+    doc.text(d,col_desc,ry+rh/2+4,{align:'center'});
+    doc.text(String(it.qtd),col_qnt,ry+rh/2+4,{align:'center'});
+    doc.text(fmt(it.valor),col_val,ry+rh/2+4,{align:'center'});
+    doc.setFont('helvetica','bold');
+    doc.text(fmt(sub),col_tot,ry+rh/2+4,{align:'center'});
+    ry+=rh;
+  });
+
+  // VALOR TOTAL (balão roxo)
+  ry+=18; const tw=280;
+  doc.setFillColor(...ROXO);doc.roundedRect(W-40-tw,ry,tw,38,16,16,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(15);
+  doc.text('VALOR TOTAL: '+fmt(total),W-40-tw/2,ry+24,{align:'center'});
+
+  // RODAPÉ ROXO
+  doc.setFillColor(...ROXO);doc.rect(0,H-52,W,52,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(12);
+  doc.text((e.nome||'Mais Print').toUpperCase(),W/2,H-30,{align:'center'});
+  const infoParts=[]; if(e.endereco)infoParts.push(e.endereco); if(e.whatsapp)infoParts.push(e.whatsapp); if(e.cnpj)infoParts.push('CNPJ '+e.cnpj);
+  if(infoParts.length){doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.text(infoParts.join('  •  '),W/2,H-16,{align:'center'});}
+
+  doc.save(`Orcamento_${numOrc}.pdf`);
+  closeModal();
+  toast('PDF gerado!');
+}
+
+/* ============================================================
+   INICIALIZAÇÃO
+   ============================================================ */
+async function init(){
+  applyTheme(localStorage.getItem('mp_theme')||'light');
+  try{
+    await openDB();
+  }catch(err){
+    document.getElementById('loginScreen').innerHTML=`
+      <div class="login-card" style="text-align:center">
+        <div class="login-logo" style="background:#E5484D"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64A9 9 0 1 1 5.64 6.64"/><line x1="12" y1="2" x2="12" y2="12"/></svg></div>
+        <h1>Sem conexão</h1>
+        <p class="sub" style="margin-bottom:20px">Não consegui conectar ao banco de dados na nuvem. Verifique sua internet e recarregue a página.</p>
+        <button class="btn-primary" onclick="location.reload()">Tentar de novo</button>
+      </div>`;
+    return;
+  }
+  // Carrega config ou cria a padrão
+  CONFIG=await dbGet('config','main');
+  if(!CONFIG){ CONFIG=JSON.parse(JSON.stringify(DEFAULT_CONFIG)); await dbPut('config',CONFIG); }
+  // Garante campos novos em configs já existentes
+  if(!CONFIG.bancos)CONFIG.bancos=[{id:'caixa',nome:'Dinheiro / Caixa'}];
+  if(!CONFIG.catReceita)CONFIG.catReceita=['Venda de pedido','Outras receitas'];
+  if(!CONFIG.catDespesa)CONFIG.catDespesa=['Compra de material','Despesa fixa','Terceirizado','Outras despesas'];
+  await dbPut('config',CONFIG);
+  buildNav();
+  renderPage('dashboard');
+  // Se já estava logado nesta sessão, pula o login
+  if(sessionStorage.getItem('mp_logged')==='1'){
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('app').style.display='flex';
+  }
+}
+init();
+</script>
+</body>
+</html>
