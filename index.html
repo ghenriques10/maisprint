@@ -1285,10 +1285,16 @@ async function renderMaterialsPage(main){
         <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.materials}</svg> Materiais</h2>
         <p class="desc">Seu estoque de insumos. O sistema calcula o custo por unidade automaticamente.</p>
       </div>
-      <button class="btn-add" onclick="openMaterialModal()">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Novo material
-      </button>
+      <div style="display:flex;gap:8px">
+        <button class="btn-add" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="compraModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>
+          Registrar compra
+        </button>
+        <button class="btn-add" onclick="openMaterialModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Novo material
+        </button>
+      </div>
     </div>
     <div class="toolbar">
       <div class="search-box">
@@ -2214,6 +2220,117 @@ function refreshSummaryT(){
     <div class="sum-line"><span class="sl-label">Seu lucro</span><span class="sl-val" style="color:#1A8A4E">${fmt(c.lucro)}</span></div>
     <div class="sum-total"><span class="st-label">PREÇO FINAL</span><span class="st-val">${fmt(c.precoFinal)}</span></div>
     ${orc.prazoDias>0?`<div class="sum-margin">Prazo: ${orc.prazoDias} dia${orc.prazoDias!==1?'s':''}</div>`:''}`;
+}
+
+/* ============================================================
+   CALCULADORA DE COMPRA
+   Rateia frete proporcional ao valor, atualiza custo médio e
+   estoque, e lança a compra como despesa no financeiro.
+   ============================================================ */
+let compraItens=[];
+async function compraModal(){
+  compraItens=[{matId:'',qtd:0,valorPago:0}];
+  const suppliers=(await dbAll('suppliers')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const supOpts=`<option value="">— Fornecedor (opcional) —</option>`+suppliers.map(s=>`<option value="${s.id}">${esc(s.nome)}</option>`).join('');
+  openModal(`
+    <div class="modal-head">
+      <h3>Registrar compra de insumos</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--text-2);margin-bottom:16px">O frete é rateado proporcionalmente ao valor de cada item, e embutido no custo. O estoque e o custo médio dos materiais são atualizados automaticamente.</p>
+      <div class="form-grid">
+        <div class="form-row"><label>Fornecedor</label><select class="inp" id="cmp_forn">${supOpts}</select></div>
+        <div class="form-row"><label>Data da compra</label><input class="inp" type="date" id="cmp_data" value="${new Date().toISOString().slice(0,10)}"></div>
+      </div>
+      <div class="modal-section-label">Itens comprados</div>
+      <div id="cmpItensList"></div>
+      <button class="btn-save" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong);margin-top:4px;padding:8px 14px;font-size:13px" onclick="addCompraItem()">+ Adicionar item</button>
+      <div class="modal-section-label">Frete</div>
+      <div class="form-row" style="max-width:200px"><label>Valor do frete</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="cmp_frete" value="" placeholder="0,00" oninput="drawCompraCalc()"></div></div>
+      <div id="cmpCalc" style="margin-top:16px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="salvarCompra()">Registrar compra</button>
+    </div>`);
+  drawCompraItens();
+}
+async function drawCompraItens(){
+  const mats=(await dbAll('materials')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  window._cmpMats=mats;
+  const box=document.getElementById('cmpItensList');if(!box)return;
+  const opts=m=>`<option value="">— Material —</option>`+mats.map(x=>`<option value="${x.id}" ${m.matId===x.id?'selected':''}>${esc(x.nome)} (${(MAT_TIPOS[x.tipo]||MAT_TIPOS.folha).usoLabel})</option>`).join('');
+  box.innerHTML=compraItens.map((it,i)=>`
+    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+      <select class="inp" style="flex:1" onchange="compraItens[${i}].matId=this.value;drawCompraCalc()">${opts(it)}</select>
+      <input class="inp" type="number" step="0.01" style="width:90px" placeholder="Qtd" value="${it.qtd||''}" oninput="compraItens[${i}].qtd=parseFloat(this.value)||0;drawCompraCalc()" title="Quantidade comprada">
+      <div class="inp-prefix" style="width:120px"><span>R$</span><input class="inp" type="number" step="0.01" placeholder="Valor pago" value="${it.valorPago||''}" oninput="compraItens[${i}].valorPago=parseFloat(this.value)||0;drawCompraCalc()" title="Valor total pago neste item"></div>
+      <button class="act-btn danger" onclick="compraItens.splice(${i},1);drawCompraItens();drawCompraCalc()" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>`).join('');
+  drawCompraCalc();
+}
+function addCompraItem(){compraItens.push({matId:'',qtd:0,valorPago:0});drawCompraItens();}
+
+function calcCompra(){
+  const frete=num('cmp_frete');
+  const valorItens=compraItens.reduce((s,it)=>s+(it.valorPago||0),0);
+  const mats=window._cmpMats||[];
+  const linhas=compraItens.map(it=>{
+    const mat=mats.find(m=>m.id===it.matId);
+    const propFrete=valorItens>0?(it.valorPago/valorItens)*frete:0;
+    const custoTotalItem=it.valorPago+propFrete;
+    const custoUnitNovo=it.qtd>0?custoTotalItem/it.qtd:0;
+    // custo médio ponderado com estoque existente
+    let custoMedio=custoUnitNovo, estoqueNovo=it.qtd;
+    if(mat){
+      const estAnt=mat.estoque||0, custoAnt=mat.custoUnit||0;
+      estoqueNovo=estAnt+it.qtd;
+      custoMedio=estoqueNovo>0?((estAnt*custoAnt)+(custoTotalItem))/estoqueNovo:custoUnitNovo;
+    }
+    return {it,mat,propFrete,custoTotalItem,custoUnitNovo,custoMedio,estoqueNovo};
+  });
+  return {frete,valorItens,total:valorItens+frete,linhas};
+}
+function drawCompraCalc(){
+  const box=document.getElementById('cmpCalc');if(!box)return;
+  const c=calcCompra();
+  if(c.valorItens===0){box.innerHTML='';return;}
+  box.innerHTML=`<div class="calc-box" style="margin:0">
+    <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span class="sl-label">Valor dos itens</span><b>${fmt(c.valorItens)}</b></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span class="sl-label">Frete rateado</span><b>${fmt(c.frete)}</b></div>
+    <div style="display:flex;justify-content:space-between;font-size:14px;border-top:1px solid var(--border);padding-top:8px"><span class="sl-label" style="font-weight:600">Total da compra</span><b style="color:var(--brand)">${fmt(c.total)}</b></div>
+    <div style="margin-top:12px;font-size:11.5px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Novo custo de cada material</div>
+    ${c.linhas.filter(l=>l.mat).map(l=>{
+      const t=MAT_TIPOS[l.mat.tipo]||MAT_TIPOS.folha;
+      return `<div style="display:flex;justify-content:space-between;font-size:12.5px;margin-top:6px">
+        <span>${esc(l.mat.nome)} <span style="color:var(--text-3)">(+${fmt(l.propFrete)} frete)</span></span>
+        <span><b style="color:var(--brand)">${fmt6(l.custoMedio)}</b>/${t.usoLabel}</span>
+      </div>`;}).join('')}
+  </div>`;
+}
+async function salvarCompra(){
+  const c=calcCompra();
+  const validos=c.linhas.filter(l=>l.mat&&l.it.qtd>0);
+  if(validos.length===0){toast('Adicione ao menos um material com quantidade');return;}
+  // Atualiza cada material: custo médio + estoque
+  for(const l of validos){
+    const mat=await dbGet('materials',l.mat.id);
+    mat.estoque=l.estoqueNovo;
+    mat.custoUnit=l.custoMedio;
+    await dbPut('materials',mat);
+  }
+  // Lança despesa no financeiro
+  const forn=document.getElementById('cmp_forn').value;
+  const data=val('cmp_data');
+  await dbPut('transactions',{
+    id:uid(),tipo:'despesa',descricao:'Compra de insumos'+(c.frete>0?' (c/ frete)':''),
+    valor:c.total,categoria:'Compra de material',banco:'caixa',
+    fornecedorId:forn,data,confirmada:true,auto:true,criadoEm:Date.now()
+  });
+  closeModal();
+  toast('Compra registrada! Estoque e custos atualizados');
+  drawMaterials();
 }
 
 /* ============================================================
