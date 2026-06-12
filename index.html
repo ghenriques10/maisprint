@@ -1660,10 +1660,11 @@ async function delEquip(id,nome){
    ============================================================ */
 let priceMode=null; // 'rapido' | 'avancado'
 let orc=null;       // orçamento em montagem
+function resetOrc(){ orc=novoOrc(); }
 
 function novoOrc(){
   return {
-    clienteId:'', descricao:'',
+    clienteId:'', descricao:'', cestaQtd:1,
     materiais:[],   // {matId, nome, tipo, custoUnit, qtd}
     equipamentos:[],// {eqId, nome, tipo:'tempo'|'pb'|'cor', minutos, paginas, deprecHora, custoPB, custoCor}
     maoObraMin:0,   // minutos de trabalho manual
@@ -1932,7 +1933,11 @@ async function renderPricingForm(){
           <div class="sum-head"><h4>Resumo do preço</h4></div>
           <div class="sum-body" id="sumBody"></div>
         </div>
-        <button class="btn-save" style="width:100%;margin-top:14px;justify-content:center" onclick="saveOrcamento()">Salvar orçamento</button>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:14px">
+          <div style="display:flex;align-items:center;gap:6px"><label style="font-size:12px;color:var(--text-2)">Qtd</label><input class="inp" type="number" min="1" style="width:60px" value="${orc.cestaQtd||1}" oninput="orc.cestaQtd=parseInt(this.value)||1"></div>
+          <button class="btn-add" style="flex:1;justify-content:center" onclick="addToCesta()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Adicionar ao orçamento</button>
+        </div>
+        <button class="btn-save" style="width:100%;margin-top:8px;justify-content:center;background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="saveOrcamento()">Salvar como produto único</button>
       </div>
     </div>`;
 
@@ -2098,6 +2103,103 @@ function setArteCobMod(m){
 }
 
 /* ---------- Salvar orçamento ---------- */
+/* ============================================================
+   CESTA DE PRODUTOS DO ORÇAMENTO
+   Permite juntar vários produtos precificados num só orçamento.
+   ============================================================ */
+let cesta=[]; // {desc, qtd, precoUnit, modo, dados(snapshot da precificação)}
+
+function addToCesta(){
+  const c=calcOrc(orc);
+  if(!orc.descricao||!orc.descricao.trim()){toast('Informe a descrição do produto');return;}
+  cesta.push({
+    desc:orc.descricao,
+    qtd:orc.cestaQtd&&orc.cestaQtd>0?orc.cestaQtd:1,
+    precoUnit:c.precoFinal,
+    modo:priceMode,
+    dados:JSON.parse(JSON.stringify(orc))
+  });
+  toast('Produto adicionado ao orçamento');
+  // limpa para o próximo produto, mantendo o cliente
+  const cliId=orc.clienteId;
+  resetOrc();
+  orc.clienteId=cliId;
+  goTab('pricing');
+  setTimeout(()=>renderCestaBar(),100);
+}
+function removeCesta(i){cesta.splice(i,1);renderCestaBar();}
+function cestaTotal(){return cesta.reduce((s,p)=>s+p.precoUnit*p.qtd,0);}
+
+function renderCestaBar(){
+  let bar=document.getElementById('cestaBar');
+  if(cesta.length===0){ if(bar)bar.remove(); return; }
+  if(!bar){
+    bar=document.createElement('div');
+    bar.id='cestaBar';
+    bar.style.cssText='position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border-strong);box-shadow:0 -4px 20px rgba(0,0,0,.08);padding:12px 20px;z-index:90';
+    document.body.appendChild(bar);
+  }
+  bar.innerHTML=`
+    <div style="max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Orçamento atual — ${cesta.length} produto${cesta.length>1?'s':''}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${cesta.map((p,i)=>`<span style="background:var(--surface-3);border-radius:8px;padding:4px 10px;font-size:12px;display:inline-flex;align-items:center;gap:6px">${p.qtd>1?p.qtd+'× ':''}${esc(p.desc)} <b style="color:var(--brand)">${fmt(p.precoUnit*p.qtd)}</b> <span onclick="removeCesta(${i})" style="cursor:pointer;color:var(--text-3);font-weight:700">×</span></span>`).join('')}
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--text-3)">Total</div>
+        <div style="font-size:20px;font-weight:700;color:var(--brand)">${fmt(cestaTotal())}</div>
+      </div>
+      <button class="btn-save" onclick="fecharCestaModal()">Fechar orçamento</button>
+    </div>`;
+}
+async function fecharCestaModal(){
+  const clients=(await dbAll('clients')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const cliOpts=`<option value="">— Selecione (opcional) —</option>`+clients.map(c=>`<option value="${c.id}" ${cesta[0]&&cesta[0].dados.clienteId===c.id?'selected':''}>${esc(c.nome)}</option>`).join('');
+  openModal(`
+    <div class="modal-head">
+      <h3>Fechar orçamento com ${cesta.length} produto${cesta.length>1?'s':''}</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="tbl-scroll"><table>
+        <thead><tr><th>Produto</th><th class="t-right">Qtd</th><th class="t-right">Unit.</th><th class="t-right">Total</th></tr></thead>
+        <tbody>${cesta.map(p=>`<tr><td>${esc(p.desc)}</td><td class="t-right">${p.qtd}</td><td class="t-right">${fmt(p.precoUnit)}</td><td class="t-right"><b>${fmt(p.precoUnit*p.qtd)}</b></td></tr>`).join('')}</tbody>
+      </table></div>
+      <div style="text-align:right;font-size:18px;font-weight:700;margin:14px 0;color:var(--brand)">Total: ${fmt(cestaTotal())}</div>
+      <div class="form-grid">
+        <div class="form-row" style="grid-column:1/-1"><label>Cliente</label><select class="inp" id="cst_cli">${cliOpts}</select></div>
+        <div class="form-row" style="grid-column:1/-1"><label>Nome do orçamento</label><input class="inp" id="cst_desc" value="${cesta.length===1?esc(cesta[0].desc):'Orçamento com '+cesta.length+' produtos'}"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="salvarCesta()">Salvar orçamento</button>
+    </div>`);
+}
+async function salvarCesta(){
+  const total=cestaTotal();
+  const id=uid();
+  // Junta materiais de todos os produtos para baixa de estoque na aprovação
+  const todosMat=[];
+  cesta.forEach(p=>{ if(p.dados&&p.dados.materiais)p.dados.materiais.forEach(m=>todosMat.push(m)); });
+  await dbPut('orders',{
+    id, status:'orcamento', modo:'multi',
+    clienteId:document.getElementById('cst_cli').value,
+    descricao:val('cst_desc'),
+    produtos:cesta.map(p=>({desc:p.desc,qtd:p.qtd,precoUnit:p.precoUnit,modo:p.modo})),
+    materiais:todosMat,
+    precoFinal:total, custoTotal:0, lucro:0,
+    criadoEm:Date.now()
+  });
+  cesta=[];
+  renderCestaBar();
+  closeModal();
+  toast('Orçamento salvo!');
+  goTab('pricing');
+}
+
 async function saveOrcamento(){
   if(!orc.descricao.trim()){toast('Informe a descrição do trabalho');return;}
   const c=calcOrc(orc);
@@ -2193,7 +2295,11 @@ async function renderTerceirizadoForm(){
           <div class="sum-head"><h4>Resumo do preço</h4></div>
           <div class="sum-body" id="sumBodyT"></div>
         </div>
-        <button class="btn-save" style="width:100%;margin-top:14px;justify-content:center" onclick="saveOrcamento()">Salvar orçamento</button>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:14px">
+          <div style="display:flex;align-items:center;gap:6px"><label style="font-size:12px;color:var(--text-2)">Qtd</label><input class="inp" type="number" min="1" style="width:60px" value="${orc.cestaQtd||1}" oninput="orc.cestaQtd=parseInt(this.value)||1"></div>
+          <button class="btn-add" style="flex:1;justify-content:center" onclick="addToCesta()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Adicionar ao orçamento</button>
+        </div>
+        <button class="btn-save" style="width:100%;margin-top:8px;justify-content:center;background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="saveOrcamento()">Salvar como produto único</button>
       </div>
     </div>`;
   refreshSummaryT();
@@ -3140,7 +3246,12 @@ async function pdfModal(orderId){
   const o=await dbGet('orders',orderId);if(!o)return;
   const clients=await dbAll('clients');const cli=clients.find(c=>c.id===o.clienteId);
   // Itens iniciais: a descrição do trabalho como 1 item com o preço final
-  pdfItens=[{desc:o.descricao||'Serviço',qtd:1,valor:o.precoFinal||0}];
+  // Se o orçamento tem vários produtos, lista todos; senão, um item só
+  if(o.produtos&&o.produtos.length){
+    pdfItens=o.produtos.map(p=>({desc:p.desc,qtd:p.qtd||1,valor:p.precoUnit||0}));
+  }else{
+    pdfItens=[{desc:o.descricao||'Serviço',qtd:1,valor:o.precoFinal||0}];
+  }
   window._pdfOrder=o;window._pdfCli=cli;
   openModal(`
     <div class="modal-head">
