@@ -576,7 +576,7 @@ const TABS = [
   {id:'dashboard',label:'Dashboard',icon:'dashboard'},
   {id:'pricing',label:'Precificação',icon:'pricing'},
   {id:'orders',label:'Pedidos',icon:'orders'},
-  {id:'clients',label:'Clientes',icon:'clients'},
+  {id:'clients',label:'Contatos',icon:'clients'},
   {id:'materials',label:'Materiais',icon:'materials'},
   {id:'equip',label:'Equipamentos',icon:'equip'},
   {id:'finance',label:'Financeiro',icon:'finance'},
@@ -905,25 +905,14 @@ function renderEmpresa(){
           <p class="help" style="margin-top:8px;max-width:240px">PNG ou JPG. Aparece em destaque no topo dos orçamentos em PDF.</p>
         </div>
       </div>
-      <div class="modal-section-label">Mascote (opcional)</div>
-      <div style="display:flex;align-items:center;gap:18px;margin-bottom:8px;flex-wrap:wrap">
-        <div id="mascotePreview" style="width:120px;height:120px;border-radius:50%;border:1.5px dashed var(--border-strong);display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--surface-2);flex-shrink:0">
-          ${e.mascote?`<img src="${e.mascote}" style="max-width:100%;max-height:100%;object-fit:cover">`:`<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>`}
-        </div>
-        <div>
-          <input type="file" id="mascoteFile" accept="image/*" style="display:none" onchange="handleMascote(event)">
-          <button class="btn-save" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="document.getElementById('mascoteFile').click()">Escolher mascote</button>
-          ${e.mascote?`<button class="btn-ghost" style="margin-left:8px" onclick="removeMascote()">Remover</button>`:''}
-          <p class="help" style="margin-top:8px;max-width:240px">Aparece em destaque circular no orçamento, como na referência.</p>
-        </div>
-      </div>
       <div class="section-divider"></div>
       <div class="form-grid">
         <div class="form-row"><label>Nome da empresa</label><input class="inp" id="cfg_nome" value="${e.nome||''}"></div>
         <div class="form-row"><label>CNPJ</label><input class="inp" id="cfg_cnpj" value="${e.cnpj||''}" placeholder="00.000.000/0000-00"></div>
         <div class="form-row"><label>WhatsApp</label><input class="inp" id="cfg_whats" value="${e.whatsapp||''}" placeholder="(43) 90000-0000"></div>
+        <div class="form-row"><label>Instagram</label><input class="inp" id="cfg_insta" value="${e.instagram||''}" placeholder="@maisprint"></div>
         <div class="form-row"><label>Chave Pix</label><input class="inp" id="cfg_pix" value="${e.pix||''}" placeholder="Sua chave para receber"></div>
-        <div class="form-row" style="grid-column:1/-1"><label>Endereço</label><input class="inp" id="cfg_end" value="${e.endereco||''}" placeholder="Rua, número - Andirá/PR"></div>
+        <div class="form-row"><label>Endereço</label><input class="inp" id="cfg_end" value="${e.endereco||''}" placeholder="Rua, número - Andirá/PR"></div>
       </div>
     </div>
     <button class="btn-save" onclick="saveEmpresa()">Salvar dados</button>
@@ -968,24 +957,6 @@ function removeLogo(){
   goSub('empresa');
   document.querySelector('.subtab:nth-child(3)')?.classList.add('active');
   toast('Logo removido');
-}
-let mascoteTmp=null;
-function handleMascote(ev){
-  const file=ev.target.files[0];if(!file)return;
-  if(file.size>5*1024*1024){toast('Imagem muito grande (máx 5MB)');return;}
-  resizeImage(file,400,400,out=>{
-    mascoteTmp=out;
-    document.getElementById('mascotePreview').innerHTML=`<img src="${mascoteTmp}" style="max-width:100%;max-height:100%;object-fit:cover">`;
-    toast('Mascote carregado — clique em Salvar dados');
-  });
-}
-function removeMascote(){
-  mascoteTmp='';
-  CONFIG.empresa.mascote='';
-  dbPut('config',CONFIG);
-  goSub('empresa');
-  document.querySelector('.subtab:nth-child(3)')?.classList.add('active');
-  toast('Mascote removido');
 }
 
 /* ---------- Cálculos e ações de Configurações ---------- */
@@ -1052,11 +1023,11 @@ async function saveEmpresa(){
   CONFIG.empresa.whatsapp=document.getElementById('cfg_whats').value;
   CONFIG.empresa.pix=document.getElementById('cfg_pix').value;
   CONFIG.empresa.endereco=document.getElementById('cfg_end').value;
+  CONFIG.empresa.instagram=document.getElementById('cfg_insta').value;
   if(logoTmp!==null)CONFIG.empresa.logo=logoTmp;
-  if(mascoteTmp!==null)CONFIG.empresa.mascote=mascoteTmp;
   try{
     await dbPut('config',CONFIG);
-    logoTmp=null;mascoteTmp=null;
+    logoTmp=null;
     toast('Dados da empresa salvos');
   }catch(err){
     toast('Erro ao salvar na nuvem — tente uma imagem menor');
@@ -3296,9 +3267,20 @@ async function gerarPDF(){
   const W=595.28, H=841.89;
   const ROXO=[102,0,255], CINZA_BLOCO=[228,228,231], CINZA_ITEM=[236,236,238], PRETO=[26,26,26], CINZA_TXT=[136,136,144];
   const yf=pt=>H-pt;
-  function img(dataurl,x,y,w,h){
+  function img(dataurl,x,y,maxw,maxh){
     if(!dataurl)return false;
-    try{const fmtImg=dataurl.indexOf('image/png')>=0?'PNG':'JPEG';doc.addImage(dataurl,fmtImg,x,y,w,h);return true;}catch(err){return false;}
+    try{
+      const fmtImg=dataurl.indexOf('image/png')>=0?'PNG':'JPEG';
+      // calcula proporção real da imagem para não esticar
+      const props=doc.getImageProperties(dataurl);
+      const ratio=props.width/props.height;
+      let w=maxw, h=maxw/ratio;
+      if(h>maxh){h=maxh;w=maxh*ratio;}
+      // centraliza dentro do espaço disponível
+      const ox=x+(maxw-w)/2, oy=y+(maxh-h)/2;
+      doc.addImage(dataurl,fmtImg,ox,oy,w,h);
+      return true;
+    }catch(err){return false;}
   }
 
   // FUNDO BRANCO
@@ -3307,14 +3289,15 @@ async function gerarPDF(){
   // FAIXA ROXA TOPO
   doc.setFillColor(...ROXO);doc.rect(0,0,W,200,'F');
   doc.setTextColor(255,255,255);
-  doc.setFont('helvetica','bold');doc.setFontSize(18);
-  doc.text((e.nome||'Mais Print').toUpperCase(),40,75);
-  doc.setFontSize(54);
-  doc.text('Orçamento',36,150);
+  doc.setFont('helvetica','bold');doc.setFontSize(16);
+  doc.text((e.nome||'Mais Print').toUpperCase(),40,72,{charSpace:1.5});
+  // Título com espaçamento moderno
+  doc.setFontSize(56);
+  doc.text('Orçamento',38,150,{charSpace:-1});
 
   // CAIXA DO LOGO
-  doc.setFillColor(255,255,255);doc.roundedRect(W-160,85,120,60,4,4,'F');
-  if(!img(e.logo, W-155, 90, 110, 50)){
+  doc.setFillColor(255,255,255);doc.roundedRect(W-160,85,120,60,6,6,'F');
+  if(!img(e.logo, W-152, 92, 104, 46)){
     doc.setTextColor(170,170,170);doc.setFont('helvetica','normal');doc.setFontSize(9);
     doc.text('logotipo',W-100,118,{align:'center'});
   }
@@ -3380,10 +3363,13 @@ async function gerarPDF(){
   doc.setFillColor(...ROXO);doc.rect(0,H-52,W,52,'F');
   doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(12);
   doc.text((e.nome||'Mais Print').toUpperCase(),W/2,H-30,{align:'center'});
-  const infoParts=[]; if(e.endereco)infoParts.push(e.endereco); if(e.whatsapp)infoParts.push(e.whatsapp); if(e.cnpj)infoParts.push('CNPJ '+e.cnpj);
+  const infoParts=[]; if(e.endereco)infoParts.push(e.endereco); if(e.whatsapp)infoParts.push(e.whatsapp); if(e.instagram)infoParts.push('@'+e.instagram.replace(/^@/,'')); if(e.cnpj)infoParts.push('CNPJ '+e.cnpj);
   if(infoParts.length){doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.text(infoParts.join('  •  '),W/2,H-16,{align:'center'});}
 
-  doc.save(`Orcamento_${numOrc}.pdf`);
+  // Nome do arquivo: Orcamento-PrimeiroNome-DD-MM-AAAA
+  const primNome=(cli&&cli.nome?cli.nome.trim().split(/\s+/)[0]:'SemCliente').replace(/[^a-zA-ZÀ-ú0-9]/g,'');
+  const dataArq=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
+  doc.save(`Orcamento-${primNome}-${dataArq}.pdf`);
   closeModal();
   toast('PDF gerado!');
 }
