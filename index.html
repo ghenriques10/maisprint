@@ -575,6 +575,7 @@ const ICON = {
 const TABS = [
   {id:'dashboard',label:'Dashboard',icon:'dashboard'},
   {id:'pricing',label:'Precificação',icon:'pricing'},
+  {id:'products',label:'Produtos',icon:'materials'},
   {id:'orders',label:'Pedidos',icon:'orders'},
   {id:'clients',label:'Contatos',icon:'clients'},
   {id:'materials',label:'Materiais',icon:'materials'},
@@ -767,6 +768,7 @@ function renderPage(id){
   if(id==='materials'){ renderMaterialsPage(main); return; }
   if(id==='equip'){ renderEquipPage(main); return; }
   if(id==='pricing'){ renderPricingPage(main); return; }
+  if(id==='products'){ renderProductsPage(main); return; }
   if(id==='dashboard'){ renderDashboardPage(main); return; }
   if(id==='orders'){ renderOrdersPage(main); return; }
   if(id==='finance'){ renderFinancePage(main); return; }
@@ -1913,6 +1915,7 @@ async function renderPricingForm(){
           <button class="btn-add" style="flex:1;justify-content:center" onclick="addToCesta()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Adicionar ao orçamento</button>
         </div>
         <button class="btn-save" style="width:100%;margin-top:8px;justify-content:center;background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="saveOrcamento()">Salvar como produto único</button>
+        <button class="btn-ghost" style="width:100%;margin-top:8px;justify-content:center" onclick="salvarComoProdutoModal()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Salvar como produto reutilizável</button>
       </div>
     </div>`;
 
@@ -2079,9 +2082,119 @@ function setArteCobMod(m){
 
 /* ---------- Salvar orçamento ---------- */
 /* ============================================================
-   CESTA DE PRODUTOS DO ORÇAMENTO
-   Permite juntar vários produtos precificados num só orçamento.
+   MÓDULO: PRODUTOS (receitas reutilizáveis)
+   Um produto guarda a "receita" (materiais, equipamentos, mão de
+   obra, etc). Ao usar, recalcula o preço com os CUSTOS ATUAIS.
    ============================================================ */
+// Atualiza os custos unitários dos materiais de uma receita com os valores atuais do cadastro
+async function atualizarCustosReceita(receita){
+  const mats=await dbAll('materials');
+  const r=JSON.parse(JSON.stringify(receita));
+  if(r.materiais)r.materiais.forEach(m=>{
+    const atual=mats.find(x=>x.id===m.matId);
+    if(atual)m.custoUnit=atual.custoUnit||0; // pega o custo de hoje
+  });
+  return r;
+}
+async function renderProductsPage(main){
+  main.innerHTML=`
+    <div class="page-head-row">
+      <div class="page-head" style="margin:0">
+        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.materials}</svg> Produtos</h2>
+        <p class="desc">Produtos que você faz com frequência. Monte a receita uma vez, reutilize sempre — o preço recalcula com os custos atuais.</p>
+      </div>
+      <button class="btn-add" onclick="goTab('pricing')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Criar produto (na precificação)
+      </button>
+    </div>
+    <div id="productsList"></div>`;
+  drawProducts();
+}
+async function drawProducts(){
+  const prods=(await dbAll('products')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const box=document.getElementById('productsList');if(!box)return;
+  if(prods.length===0){
+    box.innerHTML=`<div class="tbl-wrap"><div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON.materials}</svg>
+      <h3>Nenhum produto salvo</h3>
+      <p>Quando você precificar algo que faz sempre (ex: bloquinho A6), clique em "Salvar como produto" na tela de precificação. Ele fica guardado aqui para reusar.</p>
+    </div></div>`;return;
+  }
+  // recalcula preço atual de cada produto
+  const linhas=[];
+  for(const p of prods){
+    const receita=await atualizarCustosReceita(p.receita);
+    const oldMode=priceMode; priceMode=p.receita.modo||null;
+    const c=calcOrc(receita);
+    priceMode=oldMode;
+    linhas.push({p,preco:c.precoFinal,custo:c.custoTotal});
+  }
+  box.innerHTML=`<div class="tbl-wrap"><div class="tbl-scroll"><table>
+    <thead><tr><th>Produto</th><th>Tipo</th><th class="t-right">Custo atual</th><th class="t-right">Preço atual</th><th class="t-right">Ações</th></tr></thead>
+    <tbody>${linhas.map(({p,preco,custo})=>`
+      <tr>
+        <td><div class="t-main">${esc(p.nome)}</div>${p.obs?`<div class="t-sub">${esc(p.obs)}</div>`:''}</td>
+        <td><span class="t-sub">${p.receita.modo==='terceirizado'?'Terceirizado':(p.receita.modo==='avancado'?'Avançado':'Rápido')}</span></td>
+        <td class="t-right">${fmt(custo)}</td>
+        <td class="t-right"><b style="color:var(--brand)">${fmt(preco)}</b></td>
+        <td><div class="t-actions">
+          <button class="btn-mini" onclick="usarProduto('${p.id}')">Usar no orçamento</button>
+          <button class="act-btn danger" onclick="delProduto('${p.id}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+        </div></td>
+      </tr>`).join('')}</tbody></table></div></div>
+    <p class="help" style="margin-top:12px">Os preços acima são recalculados automaticamente com os custos de materiais de hoje. Se o papel subir, o preço do produto sobe junto.</p>`;
+}
+async function delProduto(id){
+  if(!confirm('Excluir este produto? Os orçamentos já feitos com ele não são afetados.'))return;
+  await dbDel('products',id);
+  toast('Produto excluído');drawProducts();
+}
+// Salvar a precificação atual como produto
+function salvarComoProdutoModal(){
+  if(!orc.descricao||!orc.descricao.trim()){toast('Dê uma descrição ao produto primeiro');return;}
+  openModal(`
+    <div class="modal-head">
+      <h3>Salvar como produto</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--text-2);margin-bottom:16px">Guarda esta receita para reutilizar. O preço será sempre recalculado com os custos atuais dos materiais.</p>
+      <div class="form-row"><label>Nome do produto *</label><input class="inp" id="prod_nome" value="${esc(orc.descricao)}" placeholder="Ex: Bloquinho A6 capa laminada"></div>
+      <div class="form-row" style="margin-top:12px"><label>Observação (opcional)</label><input class="inp" id="prod_obs" placeholder="Ex: miolo 52 páginas, sulfite 75g"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="salvarProduto()">Salvar produto</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('prod_nome').focus(),100);
+}
+async function salvarProduto(){
+  const nome=val('prod_nome');
+  if(!nome){toast('Informe o nome');return;}
+  const receita=JSON.parse(JSON.stringify(orc));
+  receita.modo=priceMode||orc.modo||'rapido';
+  await dbPut('products',{id:uid(),nome,obs:val('prod_obs'),receita,criadoEm:Date.now()});
+  closeModal();
+  toast('Produto salvo! Veja na aba Produtos');
+}
+// Usar um produto: carrega a receita com custos atuais e abre na precificação
+async function usarProduto(id){
+  const p=await dbGet('products',id);
+  if(!p)return;
+  const receita=await atualizarCustosReceita(p.receita);
+  priceMode=receita.modo||'rapido';
+  orc={...novoOrc(),...receita};
+  orc.descricao=p.nome;
+  orc.cestaQtd=1;
+  delete orc._editId;
+  // abre direto o formulário já preenchido (sem passar pela tela de escolha de modo)
+  if(priceMode==='terceirizado') renderTerceirizadoForm();
+  else renderPricingForm();
+  toast('Produto carregado — ajuste a quantidade e adicione ao orçamento');
+}
+
+
 let cesta=[]; // {desc, qtd, precoUnit, modo, dados(snapshot da precificação)}
 
 function addToCesta(){
@@ -2275,6 +2388,7 @@ async function renderTerceirizadoForm(){
           <button class="btn-add" style="flex:1;justify-content:center" onclick="addToCesta()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Adicionar ao orçamento</button>
         </div>
         <button class="btn-save" style="width:100%;margin-top:8px;justify-content:center;background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="saveOrcamento()">Salvar como produto único</button>
+        <button class="btn-ghost" style="width:100%;margin-top:8px;justify-content:center" onclick="salvarComoProdutoModal()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Salvar como produto reutilizável</button>
       </div>
     </div>`;
   refreshSummaryT();
