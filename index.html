@@ -1805,7 +1805,10 @@ async function renderPricingForm(){
         <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.pricing}</svg> ${orc._editId?'Editar orçamento':(avancado?'Orçamento avançado':'Orçamento rápido')}</h2>
         <p class="desc">Vá adicionando o que o trabalho usa. O preço atualiza sozinho ao lado.</p>
       </div>
-      <button class="btn-ghost" onclick="goTab('pricing')">← Voltar</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn-ghost" onclick="selecionarProdutoModal()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Usar produto salvo</button>
+        <button class="btn-ghost" onclick="goTab('pricing')">← Voltar</button>
+      </div>
     </div>
     <div class="price-layout">
       <div class="price-main">
@@ -2194,18 +2197,56 @@ async function usarProduto(id){
   toast('Produto carregado — ajuste a quantidade e adicione ao orçamento');
 }
 
+// Modal que lista produtos para escolher dentro da precificação
+async function selecionarProdutoModal(){
+  const prods=(await dbAll('products')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  let lista;
+  if(prods.length===0){
+    lista=`<p style="color:var(--text-3);font-size:13px;padding:10px 0">Você ainda não salvou nenhum produto. Monte uma precificação e clique em "Salvar como produto reutilizável".</p>`;
+  }else{
+    lista='';
+    for(const p of prods){
+      const receita=await atualizarCustosReceita(p.receita);
+      const oldMode=priceMode; priceMode=p.receita.modo||null;
+      const c=calcOrc(receita); priceMode=oldMode;
+      lista+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;cursor:pointer" onclick="closeModal();usarProduto('${p.id}')">
+        <div><div class="t-main">${esc(p.nome)}</div>${p.obs?`<div class="t-sub">${esc(p.obs)}</div>`:''}</div>
+        <div style="text-align:right"><b style="color:var(--brand)">${fmt(c.precoFinal)}</b><div class="t-sub">cada</div></div>
+      </div>`;
+    }
+  }
+  openModal(`
+    <div class="modal-head">
+      <h3>Escolher produto salvo</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--text-2);margin-bottom:14px">Clique num produto para carregá-lo. O preço já vem recalculado com os custos de hoje.</p>
+      ${lista}
+    </div>`);
+}
+
 
 let cesta=[]; // {desc, qtd, precoUnit, modo, dados(snapshot da precificação)}
 
 function addToCesta(){
   const c=calcOrc(orc);
   if(!orc.descricao||!orc.descricao.trim()){toast('Informe a descrição do produto');return;}
+  const qtd=orc.cestaQtd&&orc.cestaQtd>0?orc.cestaQtd:1;
+  // Snapshot da receita com materiais e tempos multiplicados pela quantidade
+  // (assim o estoque baixa certo: 100 bloquinhos = 100× cada material)
+  const snap=JSON.parse(JSON.stringify(orc));
+  if(qtd>1){
+    if(snap.materiais)snap.materiais.forEach(m=>{ m.qtd=(m.qtd||0)*qtd; });
+    if(snap.equipamentos)snap.equipamentos.forEach(e=>{ if(e.paginas)e.paginas*=qtd; if(e.minutos)e.minutos*=qtd; });
+    snap.maoObraMin=(snap.maoObraMin||0)*qtd;
+  }
   cesta.push({
-    desc:orc.descricao,
-    qtd:orc.cestaQtd&&orc.cestaQtd>0?orc.cestaQtd:1,
+    desc:qtd>1?`${orc.descricao} (${qtd} un)`:orc.descricao,
+    qtd:qtd,
     precoUnit:c.precoFinal,
     modo:priceMode,
-    dados:JSON.parse(JSON.stringify(orc))
+    dados:snap
   });
   toast('Produto adicionado ao orçamento');
   // limpa para o próximo produto, mantendo o cliente
@@ -2321,7 +2362,10 @@ async function renderTerceirizadoForm(){
         <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v-3a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3"/><circle cx="10" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> ${orc._editId?'Editar terceirizado':'Orçamento terceirizado'}</h2>
         <p class="desc">Você revende: paga o site, soma a arte se houver, e define seu lucro.</p>
       </div>
-      <button class="btn-ghost" onclick="goTab('pricing')">← Voltar</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn-ghost" onclick="selecionarProdutoModal()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Usar produto salvo</button>
+        <button class="btn-ghost" onclick="goTab('pricing')">← Voltar</button>
+      </div>
     </div>
     <div class="price-layout">
       <div class="price-main">
