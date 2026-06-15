@@ -2481,6 +2481,7 @@ async function compraModal(){
       <div class="form-grid">
         <div class="form-row"><label>Fornecedor</label><select class="inp" id="cmp_forn">${supOpts}</select></div>
         <div class="form-row"><label>Data da compra</label><input class="inp" type="date" id="cmp_data" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div class="form-row"><label>Pago pela conta</label><select class="inp" id="cmp_banco">${(CONFIG.bancos||[]).map(b=>`<option value="${b.id}">${esc(b.nome)}</option>`).join('')}</select></div>
       </div>
       <div class="modal-section-label">Itens comprados</div>
       <div id="cmpItensList"></div>
@@ -2564,7 +2565,7 @@ async function salvarCompra(){
   const data=val('cmp_data');
   await dbPut('transactions',{
     id:uid(),tipo:'despesa',descricao:'Compra de insumos'+(c.frete>0?' (c/ frete)':''),
-    valor:c.total,categoria:'Compra de material',banco:'caixa',
+    valor:c.total,categoria:'Compra de material',banco:document.getElementById('cmp_banco')?document.getElementById('cmp_banco').value:'caixa',
     fornecedorId:forn,data,confirmada:true,auto:true,criadoEm:Date.now()
   });
   closeModal();
@@ -3006,6 +3007,7 @@ async function renderFinancePage(main){
     </div>
     <div class="subtabs">
       <button class="subtab ${finSub==='transacoes'?'active':''}" onclick="goFinSub('transacoes')">Caixa (transações)</button>
+      <button class="subtab ${finSub==='contas'?'active':''}" onclick="goFinSub('contas')">Minhas contas</button>
       <button class="subtab ${finSub==='receber'?'active':''}" onclick="goFinSub('receber')">Contas a receber</button>
       <button class="subtab ${finSub==='pagar'?'active':''}" onclick="goFinSub('pagar')">Contas a pagar</button>
       <button class="subtab ${finSub==='recorrentes'?'active':''}" onclick="goFinSub('recorrentes')">Despesas fixas</button>
@@ -3017,9 +3019,139 @@ function goFinSub(s,keep){
   finSub=s;
   if(!keep){document.querySelectorAll('.subtabs .subtab').forEach(t=>t.classList.remove('active'));event.target.classList.add('active');}
   if(s==='transacoes')renderFinTransacoes();
+  else if(s==='contas')renderContasBancarias();
   else if(s==='receber')renderContasReceber();
   else if(s==='pagar')renderContasPagar();
   else if(s==='recorrentes')renderRecorrentes();
+}
+
+// Saldo de cada conta = soma das receitas - despesas vinculadas a ela (+transferências)
+async function saldoContas(){
+  const txs=await dbAll('transactions');
+  const saldos={};
+  (CONFIG.bancos||[]).forEach(b=>saldos[b.id]=0);
+  txs.forEach(t=>{
+    const conta=t.banco||'caixa';
+    if(saldos[conta]===undefined)saldos[conta]=0;
+    if(t.tipo==='receita')saldos[conta]+=(t.valor||0);
+    else if(t.tipo==='despesa')saldos[conta]-=(t.valor||0);
+    else if(t.tipo==='transferencia'){
+      if(saldos[t.contaOrigem]===undefined)saldos[t.contaOrigem]=0;
+      if(saldos[t.contaDestino]===undefined)saldos[t.contaDestino]=0;
+      saldos[t.contaOrigem]-=(t.valor||0);
+      saldos[t.contaDestino]+=(t.valor||0);
+    }
+  });
+  return saldos;
+}
+async function renderContasBancarias(){
+  const saldos=await saldoContas();
+  const bancos=CONFIG.bancos||[];
+  document.getElementById('finContent').innerHTML=`
+    <div class="page-head-row" style="margin-bottom:14px">
+      <div></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-add" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="transferenciaModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> Transferência</button>
+        <button class="btn-add" onclick="contaModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nova conta</button>
+      </div>
+    </div>
+    <div class="fin-cards">
+      ${bancos.map(b=>`<div class="fin-card ${saldos[b.id]>=0?'saldo':'desp'}"><div class="fc-label">${esc(b.nome)}</div><div class="fc-val">${fmt(saldos[b.id]||0)}</div></div>`).join('')}
+      <div class="fin-card rec"><div class="fc-label">Saldo total (todas as contas)</div><div class="fc-val">${fmt(Object.values(saldos).reduce((s,v)=>s+v,0))}</div></div>
+    </div>
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <thead><tr><th>Conta</th><th class="t-right">Saldo atual</th><th class="t-right">Ações</th></tr></thead>
+      <tbody>${bancos.map(b=>`
+        <tr>
+          <td><div class="t-main">${esc(b.nome)}</div></td>
+          <td class="t-right"><b style="color:${(saldos[b.id]||0)>=0?'#1A8A4E':'#E5484D'}">${fmt(saldos[b.id]||0)}</b></td>
+          <td><div class="t-actions">
+            <button class="act-btn" onclick="contaModal('${b.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            ${bancos.length>1?`<button class="act-btn danger" onclick="delConta('${b.id}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>`:''}
+          </div></td>
+        </tr>`).join('')}</tbody></table></div></div>
+    <p class="help" style="margin-top:12px">O saldo de cada conta é calculado pelas entradas e saídas vinculadas a ela. Transferências movem dinheiro de uma conta para outra sem afetar o resultado.</p>`;
+}
+function contaModal(id){
+  const b=id?(CONFIG.bancos||[]).find(x=>x.id===id):{id:'',nome:''};
+  openModal(`
+    <div class="modal-head">
+      <h3>${id?'Editar conta':'Nova conta'}</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="conta_id" value="${esc(b.id)}">
+      <div class="form-row"><label>Nome da conta *</label><input class="inp" id="conta_nome" value="${esc(b.nome)}" placeholder="Ex: Conta Sicoob, Dinheiro, PicPay, Maquininha"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveConta()">Salvar</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('conta_nome').focus(),100);
+}
+async function saveConta(){
+  const nome=val('conta_nome');
+  if(!nome){toast('Informe o nome da conta');return;}
+  if(!CONFIG.bancos)CONFIG.bancos=[];
+  const id=val('conta_id');
+  if(id){
+    const b=CONFIG.bancos.find(x=>x.id===id);if(b)b.nome=nome;
+  }else{
+    CONFIG.bancos.push({id:uid(),nome});
+  }
+  await dbPut('config',CONFIG);
+  closeModal();toast('Conta salva');renderContasBancarias();
+}
+async function delConta(id){
+  const txs=await dbAll('transactions');
+  const usada=txs.some(t=>t.banco===id||t.contaOrigem===id||t.contaDestino===id);
+  if(usada){toast('Esta conta tem movimentações e não pode ser excluída');return;}
+  if((CONFIG.bancos||[]).length<=1){toast('Você precisa de ao menos uma conta');return;}
+  if(!confirm('Excluir esta conta?'))return;
+  CONFIG.bancos=CONFIG.bancos.filter(b=>b.id!==id);
+  await dbPut('config',CONFIG);
+  toast('Conta excluída');renderContasBancarias();
+}
+async function transferenciaModal(){
+  const bancos=CONFIG.bancos||[];
+  if(bancos.length<2){toast('Cadastre ao menos 2 contas para transferir');return;}
+  const opts=sel=>bancos.map(b=>`<option value="${b.id}">${esc(b.nome)}</option>`).join('');
+  openModal(`
+    <div class="modal-head">
+      <h3>Transferência entre contas</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--text-2);margin-bottom:16px">Move dinheiro de uma conta para outra. Não conta como receita nem despesa.</p>
+      <div class="form-grid">
+        <div class="form-row"><label>De (origem)</label><select class="inp" id="tr_origem">${opts()}</select></div>
+        <div class="form-row"><label>Para (destino)</label><select class="inp" id="tr_destino">${opts()}</select></div>
+        <div class="form-row"><label>Valor</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="tr_valor" placeholder="0,00"></div></div>
+        <div class="form-row"><label>Data</label><input class="inp" type="date" id="tr_data" value="${new Date().toISOString().slice(0,10)}"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="salvarTransferencia()">Transferir</button>
+    </div>`);
+  // destino começa na segunda conta
+  setTimeout(()=>{const d=document.getElementById('tr_destino');if(d&&d.options.length>1)d.selectedIndex=1;},50);
+}
+async function salvarTransferencia(){
+  const origem=document.getElementById('tr_origem').value;
+  const destino=document.getElementById('tr_destino').value;
+  const valor=num('tr_valor');
+  if(origem===destino){toast('Escolha contas diferentes');return;}
+  if(valor<=0){toast('Informe o valor');return;}
+  const bancos=CONFIG.bancos||[];
+  const nomeO=(bancos.find(b=>b.id===origem)||{}).nome||'';
+  const nomeD=(bancos.find(b=>b.id===destino)||{}).nome||'';
+  await dbPut('transactions',{
+    id:uid(),tipo:'transferencia',descricao:`Transferência: ${nomeO} → ${nomeD}`,
+    valor,contaOrigem:origem,contaDestino:destino,data:val('tr_data'),
+    confirmada:true,criadoEm:Date.now()
+  });
+  closeModal();toast('Transferência registrada');renderContasBancarias();
 }
 
 async function renderFinTransacoes(){
@@ -3064,6 +3196,7 @@ function setFinFilter(f){finFilter=f;document.querySelectorAll('#finPills .pill'
 async function drawTx(){
   let txs=await dbAll('transactions');
   const clients=await dbAll('clients');const cMap={};clients.forEach(c=>cMap[c.id]=c.nome);
+  const bMap={};(CONFIG.bancos||[]).forEach(b=>bMap[b.id]=b.nome);
   txs=txs.filter(t=>(t.data||'').slice(0,7)===finMonth);
   if(finFilter!=='todos')txs=txs.filter(t=>t.tipo===finFilter);
   txs.sort((a,b)=>(b.data||'').localeCompare(a.data||'')||(b.criadoEm||0)-(a.criadoEm||0));
@@ -3075,16 +3208,31 @@ async function drawTx(){
     </div></div>`;return;
   }
   box.innerHTML=`<div class="tbl-wrap"><div class="tbl-scroll"><table>
-    <thead><tr><th></th><th>Descrição</th><th>Categoria</th><th>Data</th><th class="t-right">Valor</th><th class="t-right">Ações</th></tr></thead>
+    <thead><tr><th></th><th>Descrição</th><th>Conta</th><th>Categoria</th><th>Data</th><th class="t-right">Valor</th><th class="t-right">Ações</th></tr></thead>
     <tbody>${txs.map(t=>{
+      if(t.tipo==='transferencia'){
+        return `<tr>
+          <td><span class="tx-type" style="background:#EEF;color:#6600FF"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span></td>
+          <td><div class="t-main">${esc(t.descricao)}</div></td>
+          <td><span class="t-sub">${esc(bMap[t.contaOrigem]||'?')} → ${esc(bMap[t.contaDestino]||'?')}</span></td>
+          <td><span class="badge">Transferência</span></td>
+          <td>${t.data?new Date(t.data+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td>
+          <td class="t-right" style="color:var(--text-2)">${fmt(t.valor)}</td>
+          <td><div class="t-actions">
+            <button class="act-btn danger" onclick="delTx('${t.id}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+          </div></td>
+        </tr>`;
+      }
       const rec=t.tipo==='receita';
       return `<tr>
         <td><span class="tx-type ${rec?'tx-rec':'tx-desp'}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${rec?'<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>':'<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>'}</svg></span></td>
         <td><div class="t-main">${esc(t.descricao)}${t.auto?'<span class="tag-auto">auto</span>':''}</div>${t.clienteId&&cMap[t.clienteId]?`<div class="t-sub">${esc(cMap[t.clienteId])}</div>`:''}</td>
+        <td><span class="t-sub">${esc(bMap[t.banco]||'—')}</span></td>
         <td><span class="badge">${esc(t.categoria||'—')}</span></td>
         <td>${t.data?new Date(t.data+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td>
         <td class="t-right ${rec?'val-rec':'val-desp'}">${rec?'+':'−'} ${fmt(t.valor)}</td>
         <td><div class="t-actions">
+          <button class="act-btn" onclick="txModal('${t.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
           <button class="act-btn danger" onclick="delTx('${t.id}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
         </div></td>
       </tr>`;}).join('')}</tbody></table></div></div>`;
@@ -3095,32 +3243,37 @@ async function delTx(id){
   toast('Excluída');renderFinTransacoes();
 }
 
-async function txModal(){
-  const cats=[...(CONFIG.catReceita||[]),...(CONFIG.catDespesa||[])];
+async function txModal(editId){
+  const tx=editId?await dbGet('transactions',editId):null;
+  const tipoInicial=tx?tx.tipo:'receita';
+  const cats=tipoInicial==='receita'?(CONFIG.catReceita||[]):(CONFIG.catDespesa||[]);
   const clients=(await dbAll('clients')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const bancos=CONFIG.bancos||[];
   openModal(`
     <div class="modal-head">
-      <h3>Nova transação</h3>
+      <h3>${editId?'Editar transação':'Nova transação'}</h3>
       <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
+      <input type="hidden" id="tx_id" value="${editId||''}">
       <div class="radio-grid" style="grid-template-columns:1fr 1fr;margin-bottom:16px">
-        <div class="radio-opt sel" id="tx_rec" onclick="setTxType('receita')"><div class="ro-title" style="color:#1A8A4E">↑ Receita</div><div class="ro-desc">Entrou dinheiro</div></div>
-        <div class="radio-opt" id="tx_desp" onclick="setTxType('despesa')"><div class="ro-title" style="color:#E5484D">↓ Despesa</div><div class="ro-desc">Saiu dinheiro</div></div>
+        <div class="radio-opt ${tipoInicial==='receita'?'sel':''}" id="tx_rec" onclick="setTxType('receita')"><div class="ro-title" style="color:#1A8A4E">↑ Receita</div><div class="ro-desc">Entrou dinheiro</div></div>
+        <div class="radio-opt ${tipoInicial==='despesa'?'sel':''}" id="tx_desp" onclick="setTxType('despesa')"><div class="ro-title" style="color:#E5484D">↓ Despesa</div><div class="ro-desc">Saiu dinheiro</div></div>
       </div>
       <div class="form-grid">
-        <div class="form-row" style="grid-column:1/-1"><label>Descrição *</label><input class="inp" id="tx_desc" placeholder="Ex: Compra de papel"></div>
-        <div class="form-row"><label>Valor *</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="tx_valor" placeholder="0,00"></div></div>
-        <div class="form-row"><label>Data</label><input class="inp" type="date" id="tx_data" value="${new Date().toISOString().slice(0,10)}"></div>
-        <div class="form-row"><label>Categoria</label><select class="inp" id="tx_cat">${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div>
-        <div class="form-row"><label>Cliente <span class="help">(opcional)</span></label><select class="inp" id="tx_cli"><option value="">—</option>${clients.map(c=>`<option value="${c.id}">${esc(c.nome)}</option>`).join('')}</select></div>
+        <div class="form-row" style="grid-column:1/-1"><label>Descrição *</label><input class="inp" id="tx_desc" value="${tx?esc(tx.descricao):''}" placeholder="Ex: Compra de papel"></div>
+        <div class="form-row"><label>Valor *</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="tx_valor" value="${tx?tx.valor:''}" placeholder="0,00"></div></div>
+        <div class="form-row"><label>Data</label><input class="inp" type="date" id="tx_data" value="${tx?tx.data:new Date().toISOString().slice(0,10)}"></div>
+        <div class="form-row"><label>Conta</label><select class="inp" id="tx_banco">${bancos.map(b=>`<option value="${b.id}" ${tx&&tx.banco===b.id?'selected':''}>${esc(b.nome)}</option>`).join('')}</select></div>
+        <div class="form-row"><label>Categoria</label><select class="inp" id="tx_cat">${cats.map(c=>`<option ${tx&&tx.categoria===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+        <div class="form-row" style="grid-column:1/-1"><label>Cliente <span class="help">(opcional)</span></label><select class="inp" id="tx_cli"><option value="">—</option>${clients.map(c=>`<option value="${c.id}" ${tx&&tx.clienteId===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}</select></div>
       </div>
     </div>
     <div class="modal-foot">
       <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
-      <button class="btn-save" onclick="saveTx()">Registrar</button>
+      <button class="btn-save" onclick="saveTx()">${editId?'Salvar':'Registrar'}</button>
     </div>`);
-  window._txType='receita';
+  window._txType=tipoInicial;
   setTimeout(()=>document.getElementById('tx_desc').focus(),100);
 }
 function setTxType(t){
@@ -3135,12 +3288,15 @@ async function saveTx(){
   const desc=val('tx_desc'),valor=num('tx_valor');
   if(!desc){toast('Informe a descrição');return;}
   if(valor<=0){toast('Informe o valor');return;}
+  const editId=val('tx_id');
+  const ex=editId?await dbGet('transactions',editId):null;
   await dbPut('transactions',{
-    id:uid(),tipo:window._txType,descricao:desc,valor,
-    categoria:val('tx_cat'),banco:'caixa',clienteId:val('tx_cli'),
-    data:val('tx_data'),confirmada:true,criadoEm:Date.now()
+    ...(ex||{}),
+    id:editId||uid(),tipo:window._txType,descricao:desc,valor,
+    categoria:val('tx_cat'),banco:document.getElementById('tx_banco').value,clienteId:val('tx_cli'),
+    data:val('tx_data'),confirmada:true,criadoEm:ex?ex.criadoEm:Date.now()
   });
-  closeModal();toast('Transação registrada');renderFinTransacoes();
+  closeModal();toast(editId?'Transação atualizada':'Transação registrada');renderFinTransacoes();
 }
 
 /* ============================================================
