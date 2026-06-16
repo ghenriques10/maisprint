@@ -1723,36 +1723,94 @@ function calcOrc(o){
 }
 
 /* ---------- Tela inicial: escolha do modo ---------- */
+/* ============================================================
+   SISTEMA DE ORÇAMENTO (reconstruído)
+   Um orçamento = cliente + lista de produtos.
+   Cada produto guarda sua receita completa e é editável.
+   ============================================================ */
+let orcAtual=null; // o orçamento sendo montado: {_editId, clienteId, produtos:[]}
+
 async function renderPricingPage(main){
-  priceMode=null; orc=null;
+  // Se não há orçamento em montagem, começa um novo
+  if(!orcAtual)orcAtual={_editId:null,clienteId:'',produtos:[]};
+  const clients=(await dbAll('clients')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const cliOpts=`<option value="">— Selecione (opcional) —</option>`+clients.map(c=>`<option value="${c.id}" ${orcAtual.clienteId===c.id?'selected':''}>${esc(c.nome)}</option>`).join('');
+  const total=orcAtual.produtos.reduce((s,p)=>s+(p.precoUnit*p.qtd),0);
   main.innerHTML=`
-    <div class="page-head">
-      <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.pricing}</svg> Precificação</h2>
-      <p class="desc">Monte um orçamento e veja o preço justo na hora. Escolha o modo:</p>
+    <div class="page-head-row">
+      <div class="page-head" style="margin:0">
+        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.pricing}</svg> ${orcAtual._editId?'Editar orçamento':'Novo orçamento'}</h2>
+        <p class="desc">Monte o orçamento adicionando produtos. Cada produto é precificado e pode ser editado depois.</p>
+      </div>
+      ${orcAtual._editId||orcAtual.produtos.length>0?`<button class="btn-ghost" onclick="novoOrcamento()">Começar novo</button>`:''}
     </div>
-    <div class="mode-switch">
-      <button class="mode-card" onclick="startPricing('rapido')">
-        <div class="mc-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
-        <h4>Modo rápido</h4>
-        <p>Para o balcão. Materiais + tempo de trabalho + margem. Em segundos você tem o preço.</p>
-      </button>
-      <button class="mode-card" onclick="startPricing('avancado')">
-        <div class="mc-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.settings}</svg></div>
-        <h4>Modo avançado</h4>
-        <p>Para trabalhos maiores. Inclui máquinas (depreciação e tinta), acabamentos e rateio de custos fixos.</p>
-      </button>
-      <button class="mode-card" onclick="startPricing('terceirizado')">
-        <div class="mc-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v-3a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3"/><circle cx="10" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-        <h4>Modo terceirizado</h4>
-        <p>Quando você revende: manda fazer num site, soma a arte (se houver) e põe seu lucro por cima.</p>
-      </button>
+
+    <div class="card" style="margin-bottom:18px">
+      <div class="form-row" style="max-width:400px"><label>Cliente deste orçamento</label><select class="inp" onchange="orcAtual.clienteId=this.value">${cliOpts}</select></div>
     </div>
+
     <div class="card">
-      <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.clock}</svg> Histórico de orçamentos</div>
-      <div class="card-sub">Orçamentos que você salvou. No próximo bloco eles poderão virar pedidos.</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="card-title" style="margin:0"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.materials}</svg> Produtos do orçamento</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-mini" onclick="selecionarProdutoModal()" style="background:var(--surface-3);color:var(--text);border:1px solid var(--border-strong)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Usar produto salvo</button>
+          <button class="btn-add" onclick="addProdutoModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Adicionar produto</button>
+        </div>
+      </div>
+      <div id="orcProdList"></div>
+      ${orcAtual.produtos.length>0?`
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:16px;border-top:2px solid var(--border)">
+        <span style="font-size:16px;font-weight:600">Total do orçamento</span>
+        <span style="font-size:24px;font-weight:700;color:var(--brand)">${fmt(total)}</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:18px">
+        <button class="btn-save" style="flex:1;justify-content:center" onclick="salvarOrcamentoFinal()">${orcAtual._editId?'Salvar alterações':'Salvar orçamento'}</button>
+      </div>`:''}
+    </div>
+
+    ${!orcAtual._editId?`
+    <div class="card" style="margin-top:18px">
+      <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.clock}</svg> Orçamentos salvos</div>
+      <div class="card-sub">Clique para editar. Da aba Pedidos você os transforma em pedido.</div>
       <div id="orcHist"></div>
-    </div>`;
-  drawOrcHist();
+    </div>`:''}`;
+  drawOrcProdList();
+  if(!orcAtual._editId)drawOrcHist();
+}
+
+function drawOrcProdList(){
+  const box=document.getElementById('orcProdList');if(!box)return;
+  if(orcAtual.produtos.length===0){
+    box.innerHTML=`<div style="text-align:center;padding:30px 20px;color:var(--text-3)">
+      <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:10px"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>
+      <p style="font-size:13.5px">Nenhum produto ainda. Clique em "Adicionar produto" para precificar o primeiro.</p>
+    </div>`;return;
+  }
+  box.innerHTML=`<div class="tbl-scroll"><table>
+    <thead><tr><th>Produto</th><th>Tipo</th><th class="t-right">Qtd</th><th class="t-right">Unitário</th><th class="t-right">Total</th><th class="t-right">Ações</th></tr></thead>
+    <tbody>${orcAtual.produtos.map((p,i)=>`
+      <tr>
+        <td><div class="t-main">${esc(p.receita.descricao||'Sem nome')}</div></td>
+        <td><span class="t-sub">${p.receita.modo==='terceirizado'?'Terceirizado':'Produção própria'}</span></td>
+        <td class="t-right">${p.qtd}</td>
+        <td class="t-right">${fmt(p.precoUnit)}</td>
+        <td class="t-right"><b>${fmt(p.precoUnit*p.qtd)}</b></td>
+        <td><div class="t-actions">
+          <button class="act-btn" onclick="editProdutoModal(${i})" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+          <button class="act-btn danger" onclick="removeProduto(${i})" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+        </div></td>
+      </tr>`).join('')}</tbody></table></div>`;
+}
+
+function novoOrcamento(){
+  if(orcAtual.produtos.length>0&&!confirm('Começar um orçamento novo? O atual será descartado se não estiver salvo.'))return;
+  orcAtual={_editId:null,clienteId:'',produtos:[]};
+  renderPricingPage(document.getElementById('main'));
+}
+function removeProduto(i){
+  orcAtual.produtos.splice(i,1);
+  drawOrcProdList();
+  renderPricingPage(document.getElementById('main'));
 }
 
 async function drawOrcHist(){
@@ -1765,10 +1823,11 @@ async function drawOrcHist(){
     <thead><tr><th>Descrição</th><th>Cliente</th><th class="t-right">Preço</th><th class="t-right">Ações</th></tr></thead>
     <tbody>${list.map(o=>`
       <tr>
-        <td><div class="t-main">${esc(o.descricao||'Sem descrição')}</div><div class="t-sub">${new Date(o.criadoEm).toLocaleDateString('pt-BR')}</div></td>
+        <td><div class="t-main">${esc(o.descricao||'Sem descrição')}</div><div class="t-sub">${(o.produtos&&o.produtos.length||1)} produto(s) • ${new Date(o.criadoEm).toLocaleDateString('pt-BR')}</div></td>
         <td>${esc(cMap[o.clienteId]||'—')}</td>
         <td class="t-right"><b style="color:var(--brand)">${fmt(o.precoFinal)}</b></td>
         <td><div class="t-actions">
+          <button class="act-btn" onclick="editarOrcamento('${o.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
           <button class="act-btn danger" onclick="delOrc('${o.id}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
         </div></td>
       </tr>`).join('')}</tbody></table></div>`;
@@ -1778,36 +1837,135 @@ async function delOrc(id){
   await dbDel('orders',id);
   toast('Orçamento excluído');drawOrcHist();
 }
-
-/* ---------- Início do orçamento ---------- */
-async function startPricing(mode,editId){
-  priceMode=mode;
-  if(editId){
-    const ex=await dbGet('orders',editId);
-    orc={...novoOrc(),...ex};
-    orc._editId=editId;
+// Carrega um orçamento salvo para edição
+async function editarOrcamento(id){
+  const o=await dbGet('orders',id);
+  if(!o)return;
+  // Converte para o formato de montagem
+  let produtos=[];
+  if(o.produtos&&o.produtos.length&&o.produtos[0].receita){
+    produtos=JSON.parse(JSON.stringify(o.produtos));
   }else{
-    orc=novoOrc();
+    // orçamento antigo (1 produto): reconstrói a partir dos campos
+    produtos=[{receita:JSON.parse(JSON.stringify(o)),qtd:1,precoUnit:o.precoFinal||0}];
   }
-  if(mode==='terceirizado') renderTerceirizadoForm();
+  orcAtual={_editId:id,clienteId:o.clienteId||'',produtos};
+  renderPricingPage(document.getElementById('main'));
+}
+
+// Salva o orçamento final (com todos os produtos)
+async function salvarOrcamentoFinal(){
+  if(orcAtual.produtos.length===0){toast('Adicione ao menos um produto');return;}
+  const total=orcAtual.produtos.reduce((s,p)=>s+(p.precoUnit*p.qtd),0);
+  // Junta materiais de todos os produtos (multiplicados pela qtd) para baixa de estoque
+  const todosMat=[];
+  orcAtual.produtos.forEach(p=>{
+    if(p.receita.materiais)p.receita.materiais.forEach(m=>{
+      todosMat.push({...m,qtd:(m.qtd||0)*p.qtd});
+    });
+  });
+  const nome=orcAtual.produtos.length===1?orcAtual.produtos[0].receita.descricao:`Orçamento com ${orcAtual.produtos.length} produtos`;
+  const id=orcAtual._editId||uid();
+  const ex=orcAtual._editId?await dbGet('orders',id):null;
+  await dbPut('orders',{
+    ...(ex||{}),
+    id, status:ex?ex.status:'orcamento',
+    clienteId:orcAtual.clienteId,
+    descricao:nome,
+    produtos:orcAtual.produtos,
+    materiais:todosMat,
+    precoFinal:total,
+    criadoEm:ex?ex.criadoEm:Date.now()
+  });
+  toast(orcAtual._editId?'Orçamento atualizado!':'Orçamento salvo!');
+  orcAtual={_editId:null,clienteId:'',produtos:[]};
+  renderPricingPage(document.getElementById('main'));
+}
+
+// ----- Adicionar/editar um PRODUTO do orçamento -----
+let editandoProdIdx=null; // índice do produto sendo editado (null = novo)
+
+function addProdutoModal(){
+  // pergunta o tipo do produto antes de abrir o formulário
+  openModal(`
+    <div class="modal-head">
+      <h3>Que tipo de produto?</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="mode-switch" style="grid-template-columns:1fr;gap:12px">
+        <button class="mode-card" style="text-align:left" onclick="iniciarProduto('propria')">
+          <div class="mc-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.settings}</svg></div>
+          <h4>Produção própria</h4>
+          <p>Você produz. Materiais, máquinas, tempo de trabalho, acabamentos e margem.</p>
+        </button>
+        <button class="mode-card" style="text-align:left" onclick="iniciarProduto('terceirizado')">
+          <div class="mc-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v-3a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3"/><circle cx="10" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          <h4>Terceirizado / revenda</h4>
+          <p>Você manda fazer e revende. Custo do site + arte + seu lucro.</p>
+        </button>
+      </div>
+    </div>`);
+}
+function iniciarProduto(modo){
+  closeModal();
+  editandoProdIdx=null;
+  priceMode=modo==='terceirizado'?'terceirizado':'avancado';
+  orc=novoOrc();
+  orc.modo=priceMode;
+  orc.cestaQtd=1;
+  if(priceMode==='terceirizado')renderTerceirizadoForm();
   else renderPricingForm();
 }
+function editProdutoModal(idx){
+  editandoProdIdx=idx;
+  const p=orcAtual.produtos[idx];
+  priceMode=p.receita.modo==='terceirizado'?'terceirizado':'avancado';
+  orc=JSON.parse(JSON.stringify(p.receita));
+  orc.modo=priceMode;
+  orc.cestaQtd=p.qtd; // recupera a quantidade
+  if(priceMode==='terceirizado')renderTerceirizadoForm();
+  else renderPricingForm();
+}
+// Salva o produto (novo ou editado) de volta na lista do orçamento
+function salvarProdutoNoOrc(){
+  if(!orc.descricao||!orc.descricao.trim()){toast('Dê uma descrição ao produto');return;}
+  const c=calcOrc(orc);
+  const qtd=orc.cestaQtd&&orc.cestaQtd>0?orc.cestaQtd:1;
+  const receita=JSON.parse(JSON.stringify(orc));
+  receita.modo=priceMode;
+  const item={receita,qtd,precoUnit:c.precoFinal};
+  if(editandoProdIdx!==null){
+    orcAtual.produtos[editandoProdIdx]=item;
+  }else{
+    orcAtual.produtos.push(item);
+  }
+  editandoProdIdx=null;
+  renderPricingPage(document.getElementById('main'));
+  toast('Produto adicionado ao orçamento');
+}
+function cancelarProduto(){
+  editandoProdIdx=null;
+  renderPricingPage(document.getElementById('main'));
+}
+
+
 
 async function renderPricingForm(){
   const main=document.getElementById('main');
   const clients=(await dbAll('clients')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
   const cliOpts=`<option value="">— Selecione (opcional) —</option>`+clients.map(c=>`<option value="${c.id}" ${orc.clienteId===c.id?'selected':''}>${esc(c.nome)}</option>`).join('');
-  const avancado = priceMode==='avancado';
+  const avancado = true; // produção própria sempre mostra tudo (modo rápido removido)
 
   main.innerHTML=`
     <div class="page-head-row">
       <div class="page-head" style="margin:0">
-        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.pricing}</svg> ${orc._editId?'Editar orçamento':(avancado?'Orçamento avançado':'Orçamento rápido')}</h2>
-        <p class="desc">Vá adicionando o que o trabalho usa. O preço atualiza sozinho ao lado.</p>
+        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.pricing}</svg> ${editandoProdIdx!==null?'Editar produto':'Novo produto'} — produção própria</h2>
+        <p class="desc">Adicione o que o produto usa. O preço aparece ao lado.</p>
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn-ghost" onclick="selecionarProdutoModal()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Usar produto salvo</button>
-        <button class="btn-ghost" onclick="goTab('pricing')">← Voltar</button>
+        <button class="btn-ghost" onclick="cancelarProduto()">← Voltar</button>
       </div>
     </div>
     <div class="price-layout">
@@ -1913,12 +2071,14 @@ async function renderPricingForm(){
           <div class="sum-head"><h4>Resumo do preço</h4></div>
           <div class="sum-body" id="sumBody"></div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:14px">
-          <div style="display:flex;align-items:center;gap:6px"><label style="font-size:12px;color:var(--text-2)">Qtd</label><input class="inp" type="number" min="1" style="width:60px" value="${orc.cestaQtd||1}" oninput="orc.cestaQtd=parseInt(this.value)||1"></div>
-          <button class="btn-add" style="flex:1;justify-content:center" onclick="addToCesta()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Adicionar ao orçamento</button>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:14px;padding:10px 12px;background:var(--surface-3);border-radius:var(--radius-sm)">
+          <label style="font-size:13px;color:var(--text-2);font-weight:500">Quantidade</label>
+          <input class="inp" type="number" min="1" style="width:80px" value="${orc.cestaQtd||1}" oninput="orc.cestaQtd=parseInt(this.value)||1;refreshSummary()">
+          <span style="font-size:12px;color:var(--text-3)">unidade(s)</span>
         </div>
-        <button class="btn-save" style="width:100%;margin-top:8px;justify-content:center;background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="saveOrcamento()">Salvar como produto único</button>
+        <button class="btn-add" style="width:100%;margin-top:12px;justify-content:center" onclick="salvarProdutoNoOrc()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ${editandoProdIdx!==null?'Salvar produto':'Adicionar ao orçamento'}</button>
         <button class="btn-ghost" style="width:100%;margin-top:8px;justify-content:center" onclick="salvarComoProdutoModal()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Salvar como produto reutilizável</button>
+        <button class="btn-ghost" style="width:100%;margin-top:8px;justify-content:center;color:var(--text-3)" onclick="cancelarProduto()">Cancelar</button>
       </div>
     </div>`;
 
@@ -2185,13 +2345,16 @@ async function salvarProduto(){
 async function usarProduto(id){
   const p=await dbGet('products',id);
   if(!p)return;
+  // garante que há um orçamento em montagem
+  if(!orcAtual)orcAtual={_editId:null,clienteId:'',produtos:[]};
   const receita=await atualizarCustosReceita(p.receita);
-  priceMode=receita.modo||'rapido';
+  editandoProdIdx=null; // será adicionado como novo produto
+  priceMode=(receita.modo==='terceirizado')?'terceirizado':'avancado';
   orc={...novoOrc(),...receita};
+  orc.modo=priceMode;
   orc.descricao=p.nome;
   orc.cestaQtd=1;
   delete orc._editId;
-  // abre direto o formulário já preenchido (sem passar pela tela de escolha de modo)
   if(priceMode==='terceirizado') renderTerceirizadoForm();
   else renderPricingForm();
   toast('Produto carregado — ajuste a quantidade e adicione ao orçamento');
@@ -2227,129 +2390,8 @@ async function selecionarProdutoModal(){
 }
 
 
-let cesta=[]; // {desc, qtd, precoUnit, modo, dados(snapshot da precificação)}
+/* (Sistema de cesta antigo removido — agora orçamento usa orcAtual.produtos) */
 
-function addToCesta(){
-  const c=calcOrc(orc);
-  if(!orc.descricao||!orc.descricao.trim()){toast('Informe a descrição do produto');return;}
-  const qtd=orc.cestaQtd&&orc.cestaQtd>0?orc.cestaQtd:1;
-  // Snapshot da receita com materiais e tempos multiplicados pela quantidade
-  // (assim o estoque baixa certo: 100 bloquinhos = 100× cada material)
-  const snap=JSON.parse(JSON.stringify(orc));
-  if(qtd>1){
-    if(snap.materiais)snap.materiais.forEach(m=>{ m.qtd=(m.qtd||0)*qtd; });
-    if(snap.equipamentos)snap.equipamentos.forEach(e=>{ if(e.paginas)e.paginas*=qtd; if(e.minutos)e.minutos*=qtd; });
-    snap.maoObraMin=(snap.maoObraMin||0)*qtd;
-  }
-  cesta.push({
-    desc:qtd>1?`${orc.descricao} (${qtd} un)`:orc.descricao,
-    qtd:qtd,
-    precoUnit:c.precoFinal,
-    modo:priceMode,
-    dados:snap
-  });
-  toast('Produto adicionado ao orçamento');
-  // limpa para o próximo produto, mantendo o cliente
-  const cliId=orc.clienteId;
-  resetOrc();
-  orc.clienteId=cliId;
-  goTab('pricing');
-  setTimeout(()=>renderCestaBar(),100);
-}
-function removeCesta(i){cesta.splice(i,1);renderCestaBar();}
-function cestaTotal(){return cesta.reduce((s,p)=>s+p.precoUnit*p.qtd,0);}
-
-function renderCestaBar(){
-  let bar=document.getElementById('cestaBar');
-  if(cesta.length===0){ if(bar)bar.remove(); return; }
-  if(!bar){
-    bar=document.createElement('div');
-    bar.id='cestaBar';
-    bar.style.cssText='position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border-strong);box-shadow:0 -4px 20px rgba(0,0,0,.08);padding:12px 20px;z-index:90';
-    document.body.appendChild(bar);
-  }
-  bar.innerHTML=`
-    <div style="max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-      <div style="flex:1;min-width:200px">
-        <div style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Orçamento atual — ${cesta.length} produto${cesta.length>1?'s':''}</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${cesta.map((p,i)=>`<span style="background:var(--surface-3);border-radius:8px;padding:4px 10px;font-size:12px;display:inline-flex;align-items:center;gap:6px">${p.qtd>1?p.qtd+'× ':''}${esc(p.desc)} <b style="color:var(--brand)">${fmt(p.precoUnit*p.qtd)}</b> <span onclick="removeCesta(${i})" style="cursor:pointer;color:var(--text-3);font-weight:700">×</span></span>`).join('')}
-        </div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-size:11px;color:var(--text-3)">Total</div>
-        <div style="font-size:20px;font-weight:700;color:var(--brand)">${fmt(cestaTotal())}</div>
-      </div>
-      <button class="btn-save" onclick="fecharCestaModal()">Fechar orçamento</button>
-    </div>`;
-}
-async function fecharCestaModal(){
-  const clients=(await dbAll('clients')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
-  const cliOpts=`<option value="">— Selecione (opcional) —</option>`+clients.map(c=>`<option value="${c.id}" ${cesta[0]&&cesta[0].dados.clienteId===c.id?'selected':''}>${esc(c.nome)}</option>`).join('');
-  openModal(`
-    <div class="modal-head">
-      <h3>Fechar orçamento com ${cesta.length} produto${cesta.length>1?'s':''}</h3>
-      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
-    <div class="modal-body">
-      <div class="tbl-scroll"><table>
-        <thead><tr><th>Produto</th><th class="t-right">Qtd</th><th class="t-right">Unit.</th><th class="t-right">Total</th></tr></thead>
-        <tbody>${cesta.map(p=>`<tr><td>${esc(p.desc)}</td><td class="t-right">${p.qtd}</td><td class="t-right">${fmt(p.precoUnit)}</td><td class="t-right"><b>${fmt(p.precoUnit*p.qtd)}</b></td></tr>`).join('')}</tbody>
-      </table></div>
-      <div style="text-align:right;font-size:18px;font-weight:700;margin:14px 0;color:var(--brand)">Total: ${fmt(cestaTotal())}</div>
-      <div class="form-grid">
-        <div class="form-row" style="grid-column:1/-1"><label>Cliente</label><select class="inp" id="cst_cli">${cliOpts}</select></div>
-        <div class="form-row" style="grid-column:1/-1"><label>Nome do orçamento</label><input class="inp" id="cst_desc" value="${cesta.length===1?esc(cesta[0].desc):'Orçamento com '+cesta.length+' produtos'}"></div>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
-      <button class="btn-save" onclick="salvarCesta()">Salvar orçamento</button>
-    </div>`);
-}
-async function salvarCesta(){
-  const total=cestaTotal();
-  const id=uid();
-  // Junta materiais de todos os produtos para baixa de estoque na aprovação
-  const todosMat=[];
-  cesta.forEach(p=>{ if(p.dados&&p.dados.materiais)p.dados.materiais.forEach(m=>todosMat.push(m)); });
-  await dbPut('orders',{
-    id, status:'orcamento', modo:'multi',
-    clienteId:document.getElementById('cst_cli').value,
-    descricao:val('cst_desc'),
-    produtos:cesta.map(p=>({desc:p.desc,qtd:p.qtd,precoUnit:p.precoUnit,modo:p.modo})),
-    materiais:todosMat,
-    precoFinal:total, custoTotal:0, lucro:0,
-    criadoEm:Date.now()
-  });
-  cesta=[];
-  renderCestaBar();
-  closeModal();
-  toast('Orçamento salvo!');
-  goTab('pricing');
-}
-
-async function saveOrcamento(){
-  if(!orc.descricao.trim()){toast('Informe a descrição do trabalho');return;}
-  const c=calcOrc(orc);
-  const id=orc._editId||uid();
-  const existing=orc._editId?await dbGet('orders',id):null;
-  await dbPut('orders',{
-    ...(existing||{}),
-    id, status:existing?existing.status:'orcamento', modo:priceMode,
-    clienteId:orc.clienteId, descricao:orc.descricao,
-    materiais:orc.materiais, equipamentos:orc.equipamentos,
-    maoObraMin:orc.maoObraMin, acabamentos:orc.acabamentos,
-    margem:orc.margem, rateioFixo:orc.rateioFixo,
-    temArte:orc.temArte, arteCobMod:orc.arteCobMod, arteCobValor:orc.arteCobValor, arteCobMin:orc.arteCobMin,
-    custoSite:orc.custoSite, arteMod:orc.arteMod, arteValor:orc.arteValor,
-    arteMin:orc.arteMin, lucroFixo:orc.lucroFixo, prazoDias:orc.prazoDias,
-    custoTotal:c.custoTotal, precoFinal:c.precoFinal, lucro:c.lucro,
-    criadoEm:existing?existing.criadoEm:Date.now()
-  });
-  toast(orc._editId?'Orçamento atualizado!':'Orçamento salvo!');
-  goTab('pricing');
-}
 
 /* ---------- Tela do modo TERCEIRIZADO ---------- */
 async function renderTerceirizadoForm(){
@@ -2359,12 +2401,12 @@ async function renderTerceirizadoForm(){
   main.innerHTML=`
     <div class="page-head-row">
       <div class="page-head" style="margin:0">
-        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v-3a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3"/><circle cx="10" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> ${orc._editId?'Editar terceirizado':'Orçamento terceirizado'}</h2>
+        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v-3a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3"/><circle cx="10" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> ${editandoProdIdx!==null?'Editar produto':'Novo produto'} — terceirizado</h2>
         <p class="desc">Você revende: paga o site, soma a arte se houver, e define seu lucro.</p>
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn-ghost" onclick="selecionarProdutoModal()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Usar produto salvo</button>
-        <button class="btn-ghost" onclick="goTab('pricing')">← Voltar</button>
+        <button class="btn-ghost" onclick="cancelarProduto()">← Voltar</button>
       </div>
     </div>
     <div class="price-layout">
@@ -2427,12 +2469,14 @@ async function renderTerceirizadoForm(){
           <div class="sum-head"><h4>Resumo do preço</h4></div>
           <div class="sum-body" id="sumBodyT"></div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:14px">
-          <div style="display:flex;align-items:center;gap:6px"><label style="font-size:12px;color:var(--text-2)">Qtd</label><input class="inp" type="number" min="1" style="width:60px" value="${orc.cestaQtd||1}" oninput="orc.cestaQtd=parseInt(this.value)||1"></div>
-          <button class="btn-add" style="flex:1;justify-content:center" onclick="addToCesta()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Adicionar ao orçamento</button>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:14px;padding:10px 12px;background:var(--surface-3);border-radius:var(--radius-sm)">
+          <label style="font-size:13px;color:var(--text-2);font-weight:500">Quantidade</label>
+          <input class="inp" type="number" min="1" style="width:80px" value="${orc.cestaQtd||1}" oninput="orc.cestaQtd=parseInt(this.value)||1;refreshSummaryT()">
+          <span style="font-size:12px;color:var(--text-3)">unidade(s)</span>
         </div>
-        <button class="btn-save" style="width:100%;margin-top:8px;justify-content:center;background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="saveOrcamento()">Salvar como produto único</button>
+        <button class="btn-add" style="width:100%;margin-top:12px;justify-content:center" onclick="salvarProdutoNoOrc()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ${editandoProdIdx!==null?'Salvar produto':'Adicionar ao orçamento'}</button>
         <button class="btn-ghost" style="width:100%;margin-top:8px;justify-content:center" onclick="salvarComoProdutoModal()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Salvar como produto reutilizável</button>
+        <button class="btn-ghost" style="width:100%;margin-top:8px;justify-content:center;color:var(--text-3)" onclick="cancelarProduto()">Cancelar</button>
       </div>
     </div>`;
   refreshSummaryT();
@@ -2892,9 +2936,12 @@ async function orderDetail(id){
     payBtn=`<button class="btn-mini" style="padding:11px 18px" onclick="payModal('${o.id}')">Dar baixa no pagamento</button>`;
   }
 
-  // Composição (rápido/avançado vs terceirizado)
+  // Composição
   let comp='';
-  if(o.modo==='terceirizado'){
+  if(o.produtos&&o.produtos.length){
+    // Pedido com lista de produtos (novo formato)
+    comp=o.produtos.map(p=>`<div class="sum-line"><span class="sl-label">${p.qtd>1?p.qtd+'× ':''}${esc(p.receita.descricao||'Produto')} <span style="color:var(--text-3)">(${p.receita.modo==='terceirizado'?'terceirizado':'próprio'})</span></span><span class="sl-val">${fmt(p.precoUnit*p.qtd)}</span></div>`).join('');
+  }else if(o.modo==='terceirizado'){
     const cArte = o.arteMod==='tempo' ? (calcOrc(o).custoArte) : (o.arteValor||0);
     comp=`<div class="sum-line"><span class="sl-label">Custo no site</span><span class="sl-val">${fmt(o.custoSite||0)}</span></div>
       ${cArte>0?`<div class="sum-line"><span class="sl-label">Arte</span><span class="sl-val">${fmt(cArte)}</span></div>`:''}`;
@@ -2936,7 +2983,8 @@ async function orderDetail(id){
 async function editOrc(id){
   const o=await dbGet('orders',id);if(!o)return;
   if(o.status!=='orcamento'){toast('Só orçamentos podem ser editados');return;}
-  startPricing(o.modo||'rapido',id);
+  goTab('pricing');
+  setTimeout(()=>editarOrcamento(id),50);
 }
 async function advanceStatus(id,target){
   const o=await dbGet('orders',id);
