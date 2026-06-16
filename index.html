@@ -3692,8 +3692,10 @@ async function pdfModal(orderId){
       <div class="modal-section-label" style="margin-top:0">Itens do orçamento</div>
       <div id="pdfItensList"></div>
       <button class="btn-save" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong);margin-top:4px;padding:8px 14px;font-size:13px" onclick="addPdfItem()">+ Adicionar item</button>
-      <div class="modal-section-label">Prazo de entrega</div>
-      <div class="form-row"><input class="inp" id="pdf_prazo" value="${o.prazo?new Date(o.prazo+'T12:00:00').toLocaleDateString('pt-BR'):(o.prazoDias?o.prazoDias+' dias':'')}" placeholder="Ex: 15/06/2026 ou 3 dias úteis"></div>
+      <div class="form-grid">
+        <div class="form-row"><label>Prazo de entrega</label><input class="inp" id="pdf_prazo" value="${o.prazo?new Date(o.prazo+'T12:00:00').toLocaleDateString('pt-BR'):(o.prazoDias?o.prazoDias+' dias':'')}" placeholder="Ex: 15/06/2026"></div>
+        <div class="form-row"><label>Validade do orçamento (dias)</label><input class="inp" type="number" id="pdf_validade" value="7"></div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
@@ -3718,115 +3720,129 @@ async function gerarPDF(){
   const o=window._pdfOrder, cli=window._pdfCli, e=CONFIG.empresa;
   if(!window.jspdf){toast('Conecte-se à internet para gerar o PDF');return;}
   const prazo=val('pdf_prazo');
+  const validadeDias=num('pdf_validade')||7;
   const total=pdfItens.reduce((s,it)=>s+it.qtd*it.valor,0);
   const numOrc='ORC-'+(o.id||'').slice(-6).toUpperCase();
+  const hoje=new Date();
+  const validUntil=new Date(hoje.getTime()+validadeDias*86400000);
   const { jsPDF }=window.jspdf;
   const doc=new jsPDF({unit:'pt',format:'a4'});
   const W=595.28, H=841.89;
-  const ROXO=[102,0,255], CINZA_BLOCO=[228,228,231], CINZA_ITEM=[236,236,238], PRETO=[26,26,26], CINZA_TXT=[136,136,144];
-  const yf=pt=>H-pt;
+  const ROXO=[102,0,255], ROXO_ESC=[75,0,181], PRETO=[23,23,28], CINZA_TXT=[138,138,149], CINZA_LINHA=[236,236,239], ZEBRA=[245,244,248];
+  function fmtMoeda(v){return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+  // gradiente horizontal entre duas cores
+  function gradH(x,y,w,h,c1,c2,steps){
+    steps=steps||80;
+    for(let i=0;i<steps;i++){const t=i/steps;
+      doc.setFillColor(Math.round(c1[0]+(c2[0]-c1[0])*t),Math.round(c1[1]+(c2[1]-c1[1])*t),Math.round(c1[2]+(c2[2]-c1[2])*t));
+      doc.rect(x+i*(w/steps),y,w/steps+0.6,h,'F');}
+  }
+  function gradHRound(x,y,w,h,r,c1,c2,steps){
+    doc.saveGraphicsState();doc.roundedRect(x,y,w,h,r,r);doc.clip();doc.discardPath();
+    gradH(x,y,w,h,c1,c2,steps);doc.restoreGraphicsState();
+  }
   function img(dataurl,x,y,maxw,maxh){
     if(!dataurl)return false;
-    try{
-      const fmtImg=dataurl.indexOf('image/png')>=0?'PNG':'JPEG';
-      // calcula proporção real da imagem para não esticar
-      const props=doc.getImageProperties(dataurl);
-      const ratio=props.width/props.height;
-      let w=maxw, h=maxw/ratio;
-      if(h>maxh){h=maxh;w=maxh*ratio;}
-      // centraliza dentro do espaço disponível
-      const ox=x+(maxw-w)/2, oy=y+(maxh-h)/2;
-      doc.addImage(dataurl,fmtImg,ox,oy,w,h);
-      return true;
-    }catch(err){return false;}
+    try{const f=dataurl.indexOf('image/png')>=0?'PNG':'JPEG';const p=doc.getImageProperties(dataurl);
+      const ratio=p.width/p.height;let w=maxw,h=maxw/ratio;if(h>maxh){h=maxh;w=maxh*ratio;}
+      doc.addImage(dataurl,f,x+(maxw-w)/2,y+(maxh-h)/2,w,h);return true;}catch(err){return false;}
   }
 
-  // FUNDO BRANCO
+  // FUNDO
   doc.setFillColor(255,255,255);doc.rect(0,0,W,H,'F');
 
-  // FAIXA ROXA TOPO
-  doc.setFillColor(...ROXO);doc.rect(0,0,W,200,'F');
+  // TOPO: faixa gradiente roxo -> preto
+  const TOPO=130;
+  gradH(0,0,W,TOPO,ROXO,PRETO);
   doc.setTextColor(255,255,255);
-  doc.setFont('helvetica','bold');doc.setFontSize(16);
-  doc.text((e.nome||'Mais Print').toUpperCase(),40,72,{charSpace:1.5});
-  // Título com espaçamento moderno
-  doc.setFontSize(56);
-  doc.text('Orçamento',38,150,{charSpace:-1});
+  doc.setFont('helvetica','bold');doc.setFontSize(11);
+  doc.text((e.nome||'Mais Print').toUpperCase(),40,42,{charSpace:1});
+  doc.setFontSize(38);doc.text('Orçamento',38,92,{charSpace:-0.5});
+  doc.setTextColor(216,200,255);doc.setFont('helvetica','normal');doc.setFontSize(8.5);
+  doc.text(`Nº ${numOrc}  •  ${hoje.toLocaleDateString('pt-BR')}`,40,110);
 
-  // CAIXA DO LOGO
-  doc.setFillColor(255,255,255);doc.roundedRect(W-160,85,120,60,6,6,'F');
-  if(!img(e.logo, W-152, 92, 104, 46)){
-    doc.setTextColor(170,170,170);doc.setFont('helvetica','normal');doc.setFontSize(9);
-    doc.text('logotipo',W-100,118,{align:'center'});
+  // Caixa do logo
+  doc.setFillColor(255,255,255);doc.roundedRect(W-150,38,110,52,6,6,'F');
+  if(!img(e.logo, W-145, 43, 100, 42)){
+    doc.setTextColor(187,187,187);doc.setFont('helvetica','normal');doc.setFontSize(8);
+    doc.text('logo',W-95,67,{align:'center'});
   }
 
   // BLOCO CLIENTE
-  const bx=40, by=200, bw=360, bh=95;
-  doc.setFillColor(...ROXO);doc.roundedRect(bx,by+15,30,bh,12,12,'F');
-  doc.setFillColor(...CINZA_BLOCO);doc.roundedRect(bx+15,by+15,bw-15,bh,12,12,'F');
-  doc.setTextColor(...CINZA_TXT);doc.setFont('helvetica','bold');doc.setFontSize(9);
-  doc.text('CLIENTE',bx+45,by+37);
-  doc.setTextColor(...PRETO);doc.setFont('helvetica','bold');doc.setFontSize(16);
-  doc.text(cli&&cli.nome?cli.nome:'—',bx+45,by+59);
-  doc.setTextColor(85,85,85);doc.setFont('helvetica','italic');doc.setFontSize(8.5);
-  let cy=by+75;
-  if(cli&&cli.doc){doc.text(cli.doc,bx+45,cy);cy+=12;}
-  if(cli&&cli.fone){doc.text(cli.fone,bx+45,cy);}
+  let by=200;
+  doc.setFillColor(...ROXO);doc.roundedRect(40,by,18,56,6,6,'F');
+  doc.setFillColor(242,241,246);doc.roundedRect(50,by,320,56,8,8,'F');
+  doc.setTextColor(...CINZA_TXT);doc.setFont('helvetica','bold');doc.setFontSize(8);
+  doc.text('CLIENTE',70,by+18);
+  doc.setTextColor(...PRETO);doc.setFont('helvetica','bold');doc.setFontSize(14);
+  doc.text(cli&&cli.nome?cli.nome:'—',70,by+40);
 
-  // BLOCO PRAZO
-  const px=415, py=215, pw=145, ph=80;
-  doc.setFillColor(...ROXO);doc.roundedRect(px,py,pw,ph,14,14,'F');
-  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(11);
-  doc.text('PRAZO DE ENTREGA',px+pw/2,py+30,{align:'center'});
-  doc.setFontSize(16);
-  doc.text(prazo||'A combinar',px+pw/2,py+56,{align:'center'});
-
-  // PÍLULA ITENS
-  doc.setFillColor(...ROXO);doc.roundedRect(40,362,200,38,16,16,'F');
+  // BLOCO PRAZO + VALIDADE (preto)
+  doc.setFillColor(...PRETO);doc.roundedRect(390,by,165,56,8,8,'F');
+  doc.setTextColor(154,143,255);doc.setFont('helvetica','bold');doc.setFontSize(8);
+  doc.text('PRAZO DE ENTREGA',406,by+18);
   doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(13);
-  doc.text('ITENS DO ORÇAMENTO',60,386);
+  doc.text(prazo||'A combinar',406,by+38);
+  doc.setTextColor(201,191,255);doc.setFont('helvetica','normal');doc.setFontSize(7.5);
+  doc.text('Válido até '+validUntil.toLocaleDateString('pt-BR'),406,by+50);
 
-  // CABEÇALHO TABELA
-  let ty=440;
-  doc.setFillColor(...ROXO);doc.roundedRect(40,ty-34,W-80,34,8,8,'F');
-  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(12);
-  const col_desc=170, col_qnt=355, col_val=448, col_tot=528;
-  doc.text('DESCRIÇÃO',col_desc,ty-12,{align:'center'});
-  doc.text('QNT',col_qnt,ty-12,{align:'center'});
-  doc.text('VALOR UN',col_val,ty-12,{align:'center'});
-  doc.text('TOTAL',col_tot,ty-12,{align:'center'});
+  // TABELA - cabeçalho preto
+  let ty=by+92;
+  const COL_DESC=52, COL_QNT=370, COL_VAL=450, COL_TOT=W-52;
+  doc.setFillColor(...PRETO);doc.roundedRect(40,ty,W-80,26,5,5,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9);
+  doc.text('DESCRIÇÃO',COL_DESC,ty+17);
+  doc.text('QNT',COL_QNT,ty+17,{align:'center'});
+  doc.text('VALOR UN',COL_VAL,ty+17,{align:'right'});
+  doc.text('TOTAL',COL_TOT,ty+17,{align:'right'});
 
-  // LINHAS DE ITENS
-  let ry=ty, rh=34;
+  // Linhas com quebra de texto REAL
+  let ry=ty+26;
   pdfItens.forEach((it,i)=>{
     const sub=it.qtd*it.valor;
-    if(i%2===0){doc.setFillColor(...CINZA_ITEM);doc.roundedRect(48,ry+4,W-96,rh-6,10,10,'F');}
-    doc.setTextColor(...PRETO);doc.setFont('helvetica','normal');doc.setFontSize(11);
-    let d=String(it.desc); if(d.length>40)d=d.substring(0,38)+'…';
-    doc.text(d,col_desc,ry+rh/2+4,{align:'center'});
-    doc.text(String(it.qtd),col_qnt,ry+rh/2+4,{align:'center'});
-    doc.text(fmt(it.valor),col_val,ry+rh/2+4,{align:'center'});
-    doc.setFont('helvetica','bold');
-    doc.text(fmt(sub),col_tot,ry+rh/2+4,{align:'center'});
-    ry+=rh;
+    doc.setFont('helvetica','normal');doc.setFontSize(9.5);
+    const linhasDesc=doc.splitTextToSize(String(it.desc),300); // quebra de verdade
+    const altLinha=Math.max(26, 12*linhasDesc.length+14);
+    if(i%2===0){doc.setFillColor(...ZEBRA);doc.rect(40,ry,W-80,altLinha,'F');}
+    // descrição multilinha
+    doc.setTextColor(...PRETO);doc.setFont('helvetica','normal');doc.setFontSize(9.5);
+    let tyD=ry+16;
+    linhasDesc.forEach(ln=>{doc.text(ln,COL_DESC,tyD);tyD+=12;});
+    // qnt / valor / total
+    doc.text(String(it.qtd),COL_QNT,ry+16,{align:'center'});
+    doc.text(fmtMoeda(it.valor),COL_VAL,ry+16,{align:'right'});
+    doc.setFont('helvetica','bold');doc.text(fmtMoeda(sub),COL_TOT,ry+16,{align:'right'});
+    ry+=altLinha;
+    doc.setDrawColor(...CINZA_LINHA);doc.setLineWidth(0.5);doc.line(40,ry,W-40,ry);
   });
 
-  // VALOR TOTAL (balão roxo)
-  ry+=18; const tw=280;
-  doc.setFillColor(...ROXO);doc.roundedRect(W-40-tw,ry,tw,38,16,16,'F');
-  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(15);
-  doc.text('VALOR TOTAL: '+fmt(total),W-40-tw/2,ry+24,{align:'center'});
+  // VALOR TOTAL (balão roxo arredondado) + PIX
+  ry+=16;
+  const TOTW=240;
+  gradHRound(W-40-TOTW,ry,TOTW,34,17,ROXO,ROXO_ESC);
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(11);
+  doc.text('VALOR TOTAL',W-40-TOTW+20,ry+22);
+  doc.setFontSize(16);doc.text(fmtMoeda(total),W-58,ry+22,{align:'right'});
+  // Pix discreto à esquerda
+  if(e.pix){
+    doc.setTextColor(...CINZA_TXT);doc.setFont('helvetica','bold');doc.setFontSize(8);
+    doc.text('PAGAMENTO VIA PIX',40,ry+12);
+    doc.setTextColor(...PRETO);doc.setFont('helvetica','normal');doc.setFontSize(10);
+    doc.text(String(e.pix),40,ry+26);
+  }
 
-  // RODAPÉ ROXO
-  doc.setFillColor(...ROXO);doc.rect(0,H-52,W,52,'F');
-  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(12);
-  doc.text((e.nome||'Mais Print').toUpperCase(),W/2,H-30,{align:'center'});
-  const infoParts=[]; if(e.endereco)infoParts.push(e.endereco); if(e.whatsapp)infoParts.push(e.whatsapp); if(e.instagram)infoParts.push('@'+e.instagram.replace(/^@/,'')); if(e.cnpj)infoParts.push('CNPJ '+e.cnpj);
-  if(infoParts.length){doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.text(infoParts.join('  •  '),W/2,H-16,{align:'center'});}
+  // RODAPÉ gradiente preto -> roxo
+  const FOOT=42;
+  gradH(0,H-FOOT,W,FOOT,PRETO,ROXO);
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(10);
+  doc.text((e.nome||'Mais Print').toUpperCase(),W/2,H-26,{align:'center'});
+  const parts=[]; if(e.endereco)parts.push(e.endereco); if(e.whatsapp)parts.push(e.whatsapp); if(e.instagram)parts.push('@'+e.instagram.replace(/^@/,''));
+  if(parts.length){doc.setFont('helvetica','normal');doc.setFontSize(8);doc.text(parts.join('  •  '),W/2,H-13,{align:'center'});}
 
-  // Nome do arquivo: Orcamento-PrimeiroNome-DD-MM-AAAA
+  // Nome do arquivo
   const primNome=(cli&&cli.nome?cli.nome.trim().split(/\s+/)[0]:'SemCliente').replace(/[^a-zA-ZÀ-ú0-9]/g,'');
-  const dataArq=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
+  const dataArq=hoje.toLocaleDateString('pt-BR').replace(/\//g,'-');
   doc.save(`Orcamento-${primNome}-${dataArq}.pdf`);
   closeModal();
   toast('PDF gerado!');
