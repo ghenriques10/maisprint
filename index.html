@@ -1583,6 +1583,33 @@ async function openEquipModal(id){
           </div>
         </div>
       </div>
+
+      <div class="modal-section-label">Recorte (lâmina e base) <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-3)">(só para máquinas de recorte, ex: ScanNCut)</span></div>
+      <label style="display:flex;align-items:center;gap:9px;cursor:pointer;margin-bottom:6px">
+        <input type="checkbox" id="e_temRecorte" ${e.temRecorte?'checked':''} onchange="toggleRecorte()" style="width:17px;height:17px;accent-color:var(--brand)">
+        <span style="font-size:13.5px;font-weight:500">Esta máquina recorta (calcular desgaste de lâmina e base)</span>
+      </label>
+      <div id="e_recorteBox" style="display:${e.temRecorte?'block':'none'}">
+        <p style="font-size:12.5px;color:var(--text-3);margin:6px 0 12px">A lâmina se gasta pelo tempo de corte; a base perde aderência pelas folhas que passam. Cada uma entra sozinha no preço.</p>
+        <div class="form-grid">
+          <div class="form-row"><label>Preço de uma lâmina nova</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="e_laminaCusto" value="${e.laminaCusto||''}" placeholder="0,00" oninput="recalcEquip()"></div></div>
+          <div class="form-row"><label>Vida útil da lâmina (horas de corte)</label><input class="inp" type="number" step="0.5" id="e_laminaVida" value="${e.laminaVida||''}" placeholder="Ex: 10" oninput="recalcEquip()"></div>
+          <div class="form-row"><label>Preço de uma base nova</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="e_baseCusto" value="${e.baseCusto||''}" placeholder="0,00" oninput="recalcEquip()"></div></div>
+          <div class="form-row"><label>Vida útil da base (folhas)</label><input class="inp" type="number" id="e_baseVida" value="${e.baseVida||''}" placeholder="Ex: 60" oninput="recalcEquip()"></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap">
+          <div class="calc-box" style="flex:1;min-width:160px;margin:0">
+            <div class="label">Desgaste da lâmina</div>
+            <div class="val" id="e_custoLamina" style="font-size:21px">${fmt6(e.custoLaminaHora||0)}</div>
+            <div class="note">por hora de corte</div>
+          </div>
+          <div class="calc-box" style="flex:1;min-width:160px;margin:0">
+            <div class="label">Desgaste da base</div>
+            <div class="val" id="e_custoBase" style="font-size:21px">${fmt6(e.custoBaseFolha||0)}</div>
+            <div class="note">por folha cortada</div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
@@ -1593,6 +1620,11 @@ async function openEquipModal(id){
 function toggleTinta(){
   const on=document.getElementById('e_temTinta').checked;
   document.getElementById('e_tintaBox').style.display=on?'block':'none';
+  recalcEquip();
+}
+function toggleRecorte(){
+  const on=document.getElementById('e_temRecorte').checked;
+  document.getElementById('e_recorteBox').style.display=on?'block':'none';
   recalcEquip();
 }
 function recalcEquip(){
@@ -1610,6 +1642,14 @@ function recalcEquip(){
     if(pb)pb.textContent=fmt6(cPB);
     if(cor)cor.textContent=fmt6(cCor);
   }
+  const recEl=document.getElementById('e_temRecorte');
+  if(recEl&&recEl.checked){
+    const cLamina=num('e_laminaVida')>0?num('e_laminaCusto')/num('e_laminaVida'):0; // por hora
+    const cBase=num('e_baseVida')>0?num('e_baseCusto')/num('e_baseVida'):0; // por folha
+    const lam=document.getElementById('e_custoLamina'), bas=document.getElementById('e_custoBase');
+    if(lam)lam.textContent=fmt6(cLamina);
+    if(bas)bas.textContent=fmt6(cBase);
+  }
 }
 async function saveEquip(){
   const nome=val('e_nome');
@@ -1620,9 +1660,13 @@ async function saveEquip(){
   const temTinta=document.getElementById('e_temTinta').checked;
   const custoPB=temTinta&&num('e_rendPB')>0?num('e_refilPB')/num('e_rendPB'):0;
   const custoCor=temTinta&&num('e_rendCor')>0?num('e_refilCor')/num('e_rendCor'):0;
+  const temRecorte=document.getElementById('e_temRecorte').checked;
+  const custoLaminaHora=temRecorte&&num('e_laminaVida')>0?num('e_laminaCusto')/num('e_laminaVida'):0;
+  const custoBaseFolha=temRecorte&&num('e_baseVida')>0?num('e_baseCusto')/num('e_baseVida'):0;
   const id=val('e_id')||uid();
   await dbPut('equipment',{id,nome,valorAquis:aquis,valorRevenda:revenda,anos,diasAno,horasDia,deprecHora,
-    temTinta,refilPB:num('e_refilPB'),rendPB:num('e_rendPB'),refilCor:num('e_refilCor'),rendCor:num('e_rendCor'),custoPB,custoCor});
+    temTinta,refilPB:num('e_refilPB'),rendPB:num('e_rendPB'),refilCor:num('e_refilCor'),rendCor:num('e_rendCor'),custoPB,custoCor,
+    temRecorte,laminaCusto:num('e_laminaCusto'),laminaVida:num('e_laminaVida'),baseCusto:num('e_baseCusto'),baseVida:num('e_baseVida'),custoLaminaHora,custoBaseFolha});
   closeModal();toast('Equipamento salvo');drawEquip();
 }
 async function delEquip(id,nome){
@@ -1682,12 +1726,16 @@ function calcOrc(o){
   let custoMat=0;
   o.materiais.forEach(m=>{ custoMat += (m.custoUnit||0)*(m.qtd||0); });
 
-  // 2) Equipamentos (depreciação por tempo + tinta por página)
+  // 2) Equipamentos (depreciação por tempo + tinta por página + recorte lâmina/base)
   let custoEquip=0;
   o.equipamentos.forEach(e=>{
     if(e.tipo==='tempo'){ custoEquip += (e.deprecHora||0)*((e.minutos||0)/60); }
     else if(e.tipo==='pb'){ custoEquip += (e.custoPB||0)*(e.paginas||0); }
     else if(e.tipo==='cor'){ custoEquip += (e.custoCor||0)*(e.paginas||0); }
+    else if(e.tipo==='recorte'){
+      custoEquip += (e.custoLaminaHora||0)*((e.minutos||0)/60); // lâmina por tempo
+      custoEquip += (e.custoBaseFolha||0)*(e.folhas||0);        // base por folha
+    }
   });
 
   // 3) Mão de obra (valor da hora × tempo)
@@ -2145,6 +2193,7 @@ async function drawEqPicker(){
     <div class="form-row"><label>Equipamento</label><select class="inp" id="ep_sel" onchange="updateEqMode()">${opts}</select></div>
     <div class="form-row" style="max-width:160px"><label>Cobrar por</label><select class="inp" id="ep_modo" onchange="updateEqUnit()"></select></div>
     <div class="form-row" style="max-width:120px"><label id="ep_unitLabel">Minutos</label><input class="inp" type="number" step="0.01" id="ep_qtd" placeholder="0"></div>
+    <div class="form-row" style="max-width:120px;display:none" id="ep_qtd2box"><label>Folhas</label><input class="inp" type="number" id="ep_qtd2" placeholder="0"></div>
     <button class="btn-mini" onclick="addEqItem()">+ Adicionar</button>
   </div>`;
   await updateEqMode();
@@ -2156,23 +2205,39 @@ async function updateEqMode(){
   const modo=document.getElementById('ep_modo');
   let opts=`<option value="tempo">Tempo (depreciação)</option>`;
   if(e&&e.temTinta){opts+=`<option value="pb">Impressão P&B</option><option value="cor">Impressão colorida</option>`;}
+  if(e&&e.temRecorte){opts+=`<option value="recorte">Recorte (lâmina + base)</option>`;}
   modo.innerHTML=opts;
   updateEqUnit();
 }
 function updateEqUnit(){
   const modo=document.getElementById('ep_modo').value;
-  document.getElementById('ep_unitLabel').textContent = modo==='tempo'?'Minutos':'Páginas';
+  const lbl=document.getElementById('ep_unitLabel');
+  const box2=document.getElementById('ep_qtd2box');
+  if(modo==='recorte'){
+    lbl.textContent='Min. de corte';
+    if(box2)box2.style.display='block';
+  }else{
+    lbl.textContent = modo==='tempo'?'Minutos':'Páginas';
+    if(box2)box2.style.display='none';
+  }
 }
 async function addEqItem(){
   const id=document.getElementById('ep_sel').value;
   const modo=document.getElementById('ep_modo').value;
   const qtd=num('ep_qtd');
-  if(qtd<=0){toast('Informe a quantidade');return;}
   const e=await dbGet('equipment',id);if(!e)return;
-  const item={eqId:e.id,nome:e.nome,tipo:modo,minutos:0,paginas:0,deprecHora:e.deprecHora,custoPB:e.custoPB,custoCor:e.custoCor};
-  if(modo==='tempo')item.minutos=qtd; else item.paginas=qtd;
+  const item={eqId:e.id,nome:e.nome,tipo:modo,minutos:0,paginas:0,folhas:0,deprecHora:e.deprecHora,custoPB:e.custoPB,custoCor:e.custoCor,custoLaminaHora:e.custoLaminaHora,custoBaseFolha:e.custoBaseFolha};
+  if(modo==='recorte'){
+    const folhas=num('ep_qtd2');
+    if(qtd<=0&&folhas<=0){toast('Informe o tempo de corte e/ou as folhas');return;}
+    item.minutos=qtd; item.folhas=folhas;
+  }else{
+    if(qtd<=0){toast('Informe a quantidade');return;}
+    if(modo==='tempo')item.minutos=qtd; else item.paginas=qtd;
+  }
   orc.equipamentos.push(item);
   document.getElementById('ep_qtd').value='';
+  const q2=document.getElementById('ep_qtd2');if(q2)q2.value='';
   drawEqSel();refreshSummary();
 }
 function drawEqSel(){
@@ -2182,6 +2247,12 @@ function drawEqSel(){
     let sub=0,detail='';
     if(e.tipo==='tempo'){sub=e.deprecHora*(e.minutos/60);detail=`${e.minutos} min × ${fmt6(e.deprecHora)}/h (depreciação)`;}
     else if(e.tipo==='pb'){sub=e.custoPB*e.paginas;detail=`${e.paginas} pág. P&B × ${fmt6(e.custoPB)}`;}
+    else if(e.tipo==='recorte'){
+      const cLamina=(e.custoLaminaHora||0)*((e.minutos||0)/60);
+      const cBase=(e.custoBaseFolha||0)*(e.folhas||0);
+      sub=cLamina+cBase;
+      detail=`${e.minutos||0} min lâmina + ${e.folhas||0} folhas base`;
+    }
     else{sub=e.custoCor*e.paginas;detail=`${e.paginas} pág. cor × ${fmt6(e.custoCor)}`;}
     return `<div class="sel-item">
       <div class="si-info"><div class="si-name">${esc(e.nome)}</div><div class="si-detail">${detail}</div></div>
