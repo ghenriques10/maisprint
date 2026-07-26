@@ -161,13 +161,16 @@ input,select,textarea{font-family:inherit;font-size:14px}
 .sidebar.collapsed .sidebar-toggle{position:absolute;right:-13px;top:20px;background:var(--surface);border:1px solid var(--border-strong);box-shadow:0 2px 6px rgba(0,0,0,.1)}
 .nav{display:flex;flex-direction:column;gap:2px;padding:6px 12px;flex:1;overflow-y:auto}
 .nav::-webkit-scrollbar{width:0}
+.nav-group-label{font-size:10.5px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;padding:14px 12px 6px;white-space:nowrap}
+.nav-group-label:first-child{padding-top:6px}
+.sidebar.collapsed .nav-group-label{opacity:0;height:8px;padding:8px 0 0;overflow:hidden}
+.nav-emoji{font-size:16px;line-height:1;flex-shrink:0;width:17px;text-align:center}
 .nav-item{
   display:flex;align-items:center;gap:11px;
   padding:10px 12px;border-radius:9px;
   color:var(--text-2);font-size:13.5px;font-weight:500;
   white-space:nowrap;transition:all var(--trans);position:relative;
 }
-.nav-item svg{width:17px;height:17px;stroke:currentColor;flex-shrink:0}
 .nav-item:hover{background:var(--surface-3);color:var(--text)}
 .nav-item.active{background:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(102,0,255,.3)}
 .sidebar-foot{padding:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px}
@@ -191,7 +194,7 @@ input,select,textarea{font-family:inherit;font-size:14px}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:39}
 .sidebar-overlay.show{display:block}
 
-.main{margin-left:220px;padding:26px 30px;transition:margin-left var(--trans);min-height:100vh;box-sizing:border-box}
+.main{margin-left:220px;width:auto;padding:26px 30px;transition:margin-left var(--trans);min-height:100vh;box-sizing:border-box;max-width:100%}
 .sidebar.collapsed ~ .main{margin-left:72px}
 /* ============================================================
    ÁREA DE CONTEÚDO
@@ -199,6 +202,42 @@ input,select,textarea{font-family:inherit;font-size:14px}
 .page{display:none;animation:fade .25s ease}
 .page.active{display:block}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* Toggle Lista/Quadro */
+.view-toggle{display:flex;background:var(--surface-3);border-radius:10px;padding:3px;gap:2px}
+.vt-btn{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text-2);transition:all var(--trans)}
+.vt-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+
+/* Quadro Kanban */
+.kanban-wrap{display:flex;gap:16px;overflow-x:auto;padding-bottom:12px;align-items:flex-start}
+.kanban-col{
+  background:var(--surface-2);border-radius:var(--radius);
+  min-width:260px;max-width:260px;flex-shrink:0;
+  display:flex;flex-direction:column;max-height:calc(100vh - 200px);
+  transition:background var(--trans);
+}
+.kanban-col.drag-over{background:var(--surface-3);outline:2px dashed var(--brand)}
+.kanban-col-head{
+  padding:12px 14px;font-weight:700;font-size:14px;
+  display:flex;justify-content:space-between;align-items:center;
+  border-radius:var(--radius) var(--radius) 0 0;background:var(--surface);
+}
+.kanban-count{background:var(--surface-3);color:var(--text-2);font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:20px}
+.kanban-cards{padding:10px;display:flex;flex-direction:column;gap:9px;overflow-y:auto;flex:1}
+.kanban-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:11px;
+  padding:12px 13px;cursor:grab;box-shadow:0 1px 2px rgba(0,0,0,.04);
+  transition:transform var(--trans),box-shadow var(--trans);
+}
+.kanban-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08);transform:translateY(-1px)}
+.kanban-card.dragging{opacity:.4}
+.kc-desc{font-size:13.5px;font-weight:600;margin-bottom:5px;line-height:1.3}
+.kc-cliente{font-size:12px;color:var(--text-2);margin-bottom:9px}
+.kc-foot{display:flex;justify-content:space-between;align-items:center;font-size:11.5px}
+.kc-prazo{color:var(--text-3)}
+.kc-prazo.late{color:#E5484D;font-weight:700}
+.kc-valor{font-weight:700;color:var(--brand)}
+.kanban-empty{text-align:center;padding:24px 10px;color:var(--text-3);font-size:12px;border:1.5px dashed var(--border);border-radius:9px}
 .page-head{margin-bottom:22px}
 .page-head h2{font-size:24px;font-weight:700;letter-spacing:-.025em;display:flex;align-items:center;gap:10px}
 .page-head .desc{color:var(--text-2);font-size:14px;margin-top:3px}
@@ -611,17 +650,25 @@ const ICON = {
 
 /* ---------- Definição das abas ---------- */
 const TABS = [
-  {id:'dashboard',label:'Dashboard',icon:'dashboard'},
-  {id:'pricing',label:'Precificação',icon:'pricing'},
-  {id:'products',label:'Produtos',icon:'materials'},
-  {id:'orders',label:'Pedidos',icon:'orders'},
-  {id:'clients',label:'Contatos',icon:'clients'},
-  {id:'materials',label:'Materiais',icon:'materials'},
-  {id:'equip',label:'Equipamentos',icon:'equip'},
-  {id:'finance',label:'Financeiro',icon:'finance'},
-  {id:'reports',label:'Relatórios',icon:'reports'},
-  {id:'settings',label:'Configurações',icon:'settings'},
+  {group:'Meu dia a dia', items:[
+    {id:'dashboard',label:'Dashboard',icon:'dashboard',emoji:'🏠'},
+    {id:'pricing',label:'Precificação',icon:'pricing',emoji:'💰'},
+    {id:'orders',label:'Pedidos',icon:'orders',emoji:'🗂️'},
+    {id:'products',label:'Produtos',icon:'materials',emoji:'📦'},
+  ]},
+  {group:'Cadastros', items:[
+    {id:'clients',label:'Contatos',icon:'clients',emoji:'👥'},
+    {id:'materials',label:'Materiais',icon:'materials',emoji:'🧻'},
+    {id:'equip',label:'Equipamentos',icon:'equip',emoji:'🖨️'},
+  ]},
+  {group:'Gestão', items:[
+    {id:'finance',label:'Financeiro',icon:'finance',emoji:'💵'},
+    {id:'reports',label:'Relatórios',icon:'reports',emoji:'📊'},
+    {id:'settings',label:'Configurações',icon:'settings',emoji:'⚙️'},
+  ]},
 ];
+// Lista simples (achatada) para uso onde só precisamos percorrer todas as abas
+const TABS_FLAT = TABS.flatMap(g=>g.items);
 
 /* ============================================================
    BANCO DE DADOS NA NUVEM (Supabase)
@@ -784,11 +831,14 @@ document.addEventListener('keydown',e=>{
 let currentTab='dashboard';
 function buildNav(){
   const nav=document.getElementById('nav');
-  nav.innerHTML=TABS.map(t=>`
-    <button class="nav-item ${t.id===currentTab?'active':''}" data-tab="${t.id}" onclick="goTab('${t.id}')">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[t.icon]}</svg>
-      <span>${t.label}</span>
-    </button>`).join('');
+  nav.innerHTML=TABS.map(g=>`
+    <div class="nav-group-label">${esc(g.group)}</div>
+    ${g.items.map(t=>`
+      <button class="nav-item ${t.id===currentTab?'active':''}" data-tab="${t.id}" onclick="goTab('${t.id}')">
+        <span class="nav-emoji">${t.emoji}</span>
+        <span>${t.label}</span>
+      </button>`).join('')}
+  `).join('');
 }
 function goTab(id){
   currentTab=id;
@@ -824,7 +874,7 @@ function renderPage(id){
   if(id==='finance'){ renderFinancePage(main); return; }
   if(id==='reports'){ renderReportsPage(main); return; }
   // Demais módulos: placeholder "em construção" (virão nos próximos blocos)
-  const tab=TABS.find(t=>t.id===id);
+  const tab=TABS_FLAT.find(t=>t.id===id);
   const blocos={
     dashboard:'Bloco 4', pricing:'Bloco 3', orders:'Bloco 4',
     finance:'Bloco 5', reports:'Bloco 5'
@@ -1308,7 +1358,10 @@ async function renderMaterialsPage(main){
         <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.materials}</svg> Materiais</h2>
         <p class="desc">Seu estoque de insumos. O sistema calcula o custo por unidade automaticamente.</p>
       </div>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-add" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="ajusteRapidoModal()">
+          ✏️ Ajuste rápido
+        </button>
         <button class="btn-add" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="saidaInternaModal()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
           Saída uso interno
@@ -2051,8 +2104,6 @@ function cancelarProduto(){
 
 async function renderPricingForm(){
   const main=document.getElementById('main');
-  const clients=(await dbAll('clients')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
-  const cliOpts=`<option value="">— Selecione (opcional) —</option>`+clients.map(c=>`<option value="${c.id}" ${orc.clienteId===c.id?'selected':''}>${esc(c.nome)}</option>`).join('');
   const avancado = true; // produção própria sempre mostra tudo (modo rápido removido)
 
   main.innerHTML=`
@@ -2068,12 +2119,11 @@ async function renderPricingForm(){
     </div>
     <div class="price-layout">
       <div class="price-main">
-        <!-- Passo 1: Cliente e descrição -->
+        <!-- Passo 1: Descrição do produto -->
         <div class="price-step">
-          <h3><span class="ps-num">1</span> Cliente e descrição</h3>
-          <div class="ps-sub">Quem é e o que será feito.</div>
+          <h3><span class="ps-num">1</span> Descrição do produto</h3>
+          <div class="ps-sub">O que será feito. O cliente já foi escolhido no orçamento.</div>
           <div class="form-grid">
-            <div class="form-row"><label>Cliente</label><select class="inp" id="o_cliente" onchange="orc.clienteId=this.value">${cliOpts}</select></div>
             <div class="form-row" style="grid-column:1/-1"><label>Descrição do trabalho *</label><input class="inp" id="o_desc" value="${esc(orc.descricao)}" placeholder="Ex: 100 cartões de visita coloridos" oninput="orc.descricao=this.value"></div>
           </div>
         </div>
@@ -2190,13 +2240,27 @@ async function drawMatPicker(){
   const mats=(await dbAll('materials')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
   const box=document.getElementById('matPicker');if(!box)return;
   if(mats.length===0){box.innerHTML=`<p style="color:var(--text-3);font-size:13px">Nenhum material cadastrado. Vá em Materiais primeiro.</p>`;return;}
-  const opts=mats.map(m=>`<option value="${m.id}">${esc(m.nome)} — ${fmt6(m.custoUnit)}/${(MAT_TIPOS[m.tipo]||MAT_TIPOS.folha).usoLabel}</option>`).join('');
-  box.innerHTML=`<div class="item-add-row">
-    <div class="form-row"><label>Material</label><select class="inp" id="mp_sel">${opts}</select></div>
-    <div class="form-row" style="max-width:120px"><label>Quantidade</label><input class="inp" type="number" step="0.01" id="mp_qtd" placeholder="0"></div>
-    <button class="btn-mini" onclick="addMatItem()">+ Adicionar</button>
-  </div>`;
+  window._matsCache=mats;
+  box.innerHTML=`
+    <div class="form-row"><label>🔎 Buscar material</label><input class="inp" id="mp_busca" placeholder="Digite para filtrar..." oninput="filtrarMatSelect()"></div>
+    <div class="item-add-row">
+      <div class="form-row"><label>Material</label><select class="inp" id="mp_sel"></select></div>
+      <div class="form-row" style="max-width:120px"><label>Quantidade</label><input class="inp" type="number" step="0.01" id="mp_qtd" placeholder="0"></div>
+      <button class="btn-mini" onclick="addMatItem()">+ Adicionar</button>
+    </div>`;
+  filtrarMatSelect();
   drawMatSel();
+}
+function filtrarMatSelect(){
+  const termo=(document.getElementById('mp_busca')?.value||'').toLowerCase().trim();
+  const mats=window._matsCache||[];
+  const filtrados=termo?mats.filter(m=>(m.nome||'').toLowerCase().includes(termo)):mats;
+  const sel=document.getElementById('mp_sel');
+  if(!sel)return;
+  if(filtrados.length===0){
+    sel.innerHTML=`<option value="">Nenhum material encontrado</option>`;return;
+  }
+  sel.innerHTML=filtrados.map(m=>`<option value="${m.id}">${esc(m.nome)} — ${fmt6(m.custoUnit)}/${(MAT_TIPOS[m.tipo]||MAT_TIPOS.folha).usoLabel}</option>`).join('');
 }
 async function addMatItem(){
   const id=document.getElementById('mp_sel').value;
@@ -2517,8 +2581,6 @@ async function selecionarProdutoModal(){
 /* ---------- Tela do modo TERCEIRIZADO ---------- */
 async function renderTerceirizadoForm(){
   const main=document.getElementById('main');
-  const clients=(await dbAll('clients')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
-  const cliOpts=`<option value="">— Selecione (opcional) —</option>`+clients.map(c=>`<option value="${c.id}" ${orc.clienteId===c.id?'selected':''}>${esc(c.nome)}</option>`).join('');
   main.innerHTML=`
     <div class="page-head-row">
       <div class="page-head" style="margin:0">
@@ -2533,10 +2595,9 @@ async function renderTerceirizadoForm(){
     <div class="price-layout">
       <div class="price-main">
         <div class="price-step">
-          <h3><span class="ps-num">1</span> Cliente e descrição</h3>
-          <div class="ps-sub">Quem é e o que será feito.</div>
+          <h3><span class="ps-num">1</span> Descrição do produto</h3>
+          <div class="ps-sub">O que será feito. O cliente já foi escolhido no orçamento.</div>
           <div class="form-grid">
-            <div class="form-row"><label>Cliente</label><select class="inp" id="o_cliente" onchange="orc.clienteId=this.value">${cliOpts}</select></div>
             <div class="form-row" style="grid-column:1/-1"><label>Descrição do trabalho *</label><input class="inp" id="o_desc" value="${esc(orc.descricao)}" placeholder="Ex: 100 cartões de visita (gráfica online)" oninput="orc.descricao=this.value"></div>
           </div>
         </div>
@@ -2743,6 +2804,59 @@ async function salvarCompra(){
    Baixa o material do estoque e lança o custo como despesa.
    ============================================================ */
 let saidaItens=[];
+/* ============================================================
+   AJUSTE RÁPIDO DE ESTOQUE
+   Corrige a quantidade de um material na hora, sem burocracia.
+   Uso: sobrou/faltou folha, errou impressão, etc.
+   ============================================================ */
+async function ajusteRapidoModal(){
+  const mats=(await dbAll('materials')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  window._ajusteMats=mats;
+  openModal(`
+    <div class="modal-head">
+      <h3>✏️ Ajuste rápido de estoque</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--text-2);margin-bottom:14px">Corrija o número direto quando errar uma impressão, contar sobra, ou perceber diferença. Não precisa montar pedido nem compra pra isso.</p>
+      <div class="form-row"><label>🔎 Buscar material</label><input class="inp" id="aj_busca" placeholder="Digite para filtrar..." oninput="drawAjusteLista()"></div>
+      <div id="ajusteLista" style="margin-top:12px;max-height:340px;overflow-y:auto"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Fechar</button>
+    </div>`);
+  drawAjusteLista();
+  setTimeout(()=>document.getElementById('aj_busca').focus(),100);
+}
+function drawAjusteLista(){
+  const termo=(document.getElementById('aj_busca')?.value||'').toLowerCase().trim();
+  const mats=window._ajusteMats||[];
+  const filtrados=termo?mats.filter(m=>(m.nome||'').toLowerCase().includes(termo)):mats;
+  const box=document.getElementById('ajusteLista');if(!box)return;
+  if(filtrados.length===0){box.innerHTML=`<p style="color:var(--text-3);font-size:13px;padding:10px 0">Nenhum material encontrado.</p>`;return;}
+  box.innerHTML=filtrados.map(m=>{
+    const t=MAT_TIPOS[m.tipo]||MAT_TIPOS.folha;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--border)">
+      <div style="flex:1"><div class="t-main">${esc(m.nome)}</div><div class="t-sub">atual: ${m.estoque||0} ${t.usoLabel}</div></div>
+      <input class="inp" type="number" step="0.01" style="width:100px" placeholder="Novo valor" id="aj_val_${m.id}">
+      <button class="btn-mini" onclick="salvarAjuste('${m.id}')">Salvar</button>
+    </div>`;
+  }).join('');
+}
+async function salvarAjuste(id){
+  const input=document.getElementById('aj_val_'+id);
+  const novoValor=parseFloat(input.value);
+  if(isNaN(novoValor)||novoValor<0){toast('Informe um valor válido');return;}
+  const m=await dbGet('materials',id);
+  if(!m)return;
+  m.estoque=novoValor;
+  await dbPut('materials',m);
+  // atualiza o cache local e redesenha
+  window._ajusteMats=window._ajusteMats.map(x=>x.id===id?{...x,estoque:novoValor}:x);
+  toast(`✓ ${m.nome}: estoque ajustado para ${novoValor}`);
+  drawAjusteLista();
+}
+
 async function saidaInternaModal(){
   saidaItens=[{matId:'',qtd:0}];
   openModal(`
@@ -2907,6 +3021,7 @@ async function renderDashboardPage(main){
 
 /* ---------- PEDIDOS ---------- */
 let orderFilter='todos';
+let ordersView='lista'; // 'lista' | 'quadro'
 async function renderOrdersPage(main){
   main.innerHTML=`
     <div class="page-head-row">
@@ -2914,17 +3029,107 @@ async function renderOrdersPage(main){
         <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.orders}</svg> Pedidos</h2>
         <p class="desc">Orçamentos e pedidos. Aprove um orçamento para iniciar a produção.</p>
       </div>
-      <button class="btn-add" onclick="goTab('pricing')">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Novo orçamento
-      </button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="view-toggle">
+          <button class="vt-btn ${ordersView==='lista'?'active':''}" onclick="setOrdersView('lista')">📋 Lista</button>
+          <button class="vt-btn ${ordersView==='quadro'?'active':''}" onclick="setOrdersView('quadro')">🗂️ Quadro</button>
+        </div>
+        <button class="btn-add" onclick="goTab('pricing')">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Novo orçamento
+        </button>
+      </div>
     </div>
+    <div id="ordersView"></div>`;
+  drawOrdersView();
+}
+function setOrdersView(v,ev){
+  ordersView=v;
+  document.querySelectorAll('.vt-btn').forEach(b=>b.classList.remove('active'));
+  const btn=(ev||window.event)?.target;
+  if(btn)btn.classList.add('active');
+  else document.querySelectorAll('.vt-btn').forEach(b=>{ if(b.textContent.includes(v==='lista'?'Lista':'Quadro'))b.classList.add('active'); });
+  drawOrdersView();
+}
+function drawOrdersView(){
+  const box=document.getElementById('ordersView');if(!box)return;
+  if(ordersView==='quadro'){
+    box.innerHTML=`<div id="kanbanBoard"></div>`;
+    drawKanban();
+  }else{
+    box.innerHTML=`
     <div class="filter-pills" id="orderPills">
       ${[['todos','Todos'],['orcamento','Orçamentos'],['design','Arte a fazer'],['producao','Em produção'],['pronto','Prontos'],['entregue','Entregues']].map(([k,l])=>
         `<button class="pill ${orderFilter===k?'active':''}" onclick="setOrderFilter('${k}')">${l}</button>`).join('')}
     </div>
     <div id="ordersTable"></div>`;
-  drawOrders();
+    drawOrders();
+  }
+}
+
+/* ============================================================
+   QUADRO KANBAN (estilo Trello) — arraste os pedidos entre colunas
+   ============================================================ */
+const KANBAN_COLS=[
+  {status:'design',label:'🎨 Arte a fazer',color:'#9333EA'},
+  {status:'producao',label:'⚙️ Em produção',color:'#5A6472'},
+  {status:'pronto',label:'✅ Pronto',color:'#1A8A4E'},
+  {status:'entregue',label:'📦 Entregue',color:'#8A93A1'},
+];
+async function drawKanban(){
+  const all=await dbAll('orders');
+  const clients=await dbAll('clients');const cMap={};clients.forEach(c=>cMap[c.id]=c.nome);
+  const pedidos=all.filter(o=>o.status!=='orcamento');
+  const box=document.getElementById('kanbanBoard');if(!box)return;
+  box.innerHTML=`<div class="kanban-wrap">
+    ${KANBAN_COLS.map(col=>{
+      const itens=pedidos.filter(o=>o.status===col.status).sort((a,b)=>(a.prazo||'z').localeCompare(b.prazo||'z'));
+      return `<div class="kanban-col" data-status="${col.status}" ondragover="kanbanDragOver(event)" ondrop="kanbanDrop(event,'${col.status}')" ondragleave="kanbanDragLeave(event)">
+        <div class="kanban-col-head" style="border-top:3px solid ${col.color}">
+          <span>${col.label}</span><span class="kanban-count">${itens.length}</span>
+        </div>
+        <div class="kanban-cards">
+          ${itens.length===0?`<div class="kanban-empty">Arraste um pedido pra cá</div>`:itens.map(o=>{
+            const late=isLate(o);
+            const prazoTxt=o.prazo?new Date(o.prazo+'T12:00:00').toLocaleDateString('pt-BR'):'';
+            return `<div class="kanban-card" draggable="true" ondragstart="kanbanDragStart(event,'${o.id}')" ondragend="kanbanDragEnd(event)" onclick="orderDetail('${o.id}')">
+              <div class="kc-desc">${esc(o.descricao||'Sem descrição')}</div>
+              <div class="kc-cliente">${esc(cMap[o.clienteId]||'Sem cliente')}</div>
+              <div class="kc-foot">
+                ${prazoTxt?`<span class="kc-prazo ${late?'late':''}">${late?'⚠️ ':'📅 '}${prazoTxt}</span>`:'<span></span>'}
+                <span class="kc-valor">${fmt(o.precoFinal)}</span>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+let kanbanDragId=null;
+function kanbanDragStart(ev,id){
+  kanbanDragId=id;
+  ev.target.classList.add('dragging');
+  ev.dataTransfer.effectAllowed='move';
+}
+function kanbanDragEnd(ev){ ev.target.classList.remove('dragging'); }
+function kanbanDragOver(ev){
+  ev.preventDefault();
+  ev.currentTarget.classList.add('drag-over');
+}
+function kanbanDragLeave(ev){ ev.currentTarget.classList.remove('drag-over'); }
+async function kanbanDrop(ev,novoStatus){
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('drag-over');
+  if(!kanbanDragId)return;
+  const o=await dbGet('orders',kanbanDragId);
+  if(!o||o.status===novoStatus){kanbanDragId=null;return;}
+  o.status=novoStatus;
+  if(novoStatus==='entregue')o.entregueEm=Date.now();
+  await dbPut('orders',o);
+  kanbanDragId=null;
+  toast(`Movido para ${KANBAN_COLS.find(c=>c.status===novoStatus)?.label.replace(/^\S+\s/,'')||novoStatus}`);
+  drawKanban();
 }
 function setOrderFilter(f){orderFilter=f;document.querySelectorAll('#orderPills .pill').forEach(p=>p.classList.remove('active'));event.target.classList.add('active');drawOrders();}
 
