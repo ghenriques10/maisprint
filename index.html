@@ -164,16 +164,18 @@ input,select,textarea{font-family:inherit;font-size:14px}
 .nav-group-label{font-size:10.5px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;padding:14px 12px 6px;white-space:nowrap}
 .nav-group-label:first-child{padding-top:6px}
 .sidebar.collapsed .nav-group-label{opacity:0;height:8px;padding:8px 0 0;overflow:hidden}
-.nav-emoji{font-size:16px;line-height:1;flex-shrink:0;width:17px;text-align:center}
 .nav-item{
   display:flex;align-items:center;gap:11px;
   padding:10px 12px;border-radius:9px;
   color:var(--text-2);font-size:13.5px;font-weight:500;
   white-space:nowrap;transition:all var(--trans);position:relative;
 }
+.nav-item svg{width:17px;height:17px;stroke:currentColor;flex-shrink:0}
 .nav-item:hover{background:var(--surface-3);color:var(--text)}
 .nav-item.active{background:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(102,0,255,.3)}
 .sidebar-foot{padding:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px}
+.sidebar-version{font-size:10px;color:var(--text-3);text-align:center;padding:6px 0 0;letter-spacing:.02em}
+.sidebar.collapsed .sidebar-version{display:none}
 .icon-btn{
   width:100%;height:38px;border-radius:9px;
   display:flex;align-items:center;gap:11px;padding:0 12px;
@@ -606,6 +608,7 @@ tbody tr:hover{background:var(--surface-2)}
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         <span>Sair</span>
       </button>
+      <div class="sidebar-version">v2026.07.28</div>
     </div>
   </div>
   <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileNav()" title="Abrir menu">
@@ -651,20 +654,20 @@ const ICON = {
 /* ---------- Definição das abas ---------- */
 const TABS = [
   {group:'Meu dia a dia', items:[
-    {id:'dashboard',label:'Dashboard',icon:'dashboard',emoji:'🏠'},
-    {id:'pricing',label:'Precificação',icon:'pricing',emoji:'💰'},
-    {id:'orders',label:'Pedidos',icon:'orders',emoji:'🗂️'},
-    {id:'products',label:'Produtos',icon:'materials',emoji:'📦'},
+    {id:'dashboard',label:'Dashboard',icon:'dashboard'},
+    {id:'pricing',label:'Precificação',icon:'pricing'},
+    {id:'orders',label:'Pedidos',icon:'orders'},
+    {id:'products',label:'Produtos',icon:'materials'},
   ]},
   {group:'Cadastros', items:[
-    {id:'clients',label:'Contatos',icon:'clients',emoji:'👥'},
-    {id:'materials',label:'Materiais',icon:'materials',emoji:'🧻'},
-    {id:'equip',label:'Equipamentos',icon:'equip',emoji:'🖨️'},
+    {id:'clients',label:'Contatos',icon:'clients'},
+    {id:'materials',label:'Materiais',icon:'materials'},
+    {id:'equip',label:'Equipamentos',icon:'equip'},
   ]},
   {group:'Gestão', items:[
-    {id:'finance',label:'Financeiro',icon:'finance',emoji:'💵'},
-    {id:'reports',label:'Relatórios',icon:'reports',emoji:'📊'},
-    {id:'settings',label:'Configurações',icon:'settings',emoji:'⚙️'},
+    {id:'finance',label:'Financeiro',icon:'finance'},
+    {id:'reports',label:'Relatórios',icon:'reports'},
+    {id:'settings',label:'Configurações',icon:'settings'},
   ]},
 ];
 // Lista simples (achatada) para uso onde só precisamos percorrer todas as abas
@@ -835,7 +838,7 @@ function buildNav(){
     <div class="nav-group-label">${esc(g.group)}</div>
     ${g.items.map(t=>`
       <button class="nav-item ${t.id===currentTab?'active':''}" data-tab="${t.id}" onclick="goTab('${t.id}')">
-        <span class="nav-emoji">${t.emoji}</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[t.icon]}</svg>
         <span>${t.label}</span>
       </button>`).join('')}
   `).join('');
@@ -1360,7 +1363,7 @@ async function renderMaterialsPage(main){
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn-add" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="ajusteRapidoModal()">
-          ✏️ Ajuste rápido
+          Ajuste rápido
         </button>
         <button class="btn-add" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="saidaInternaModal()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
@@ -1643,7 +1646,7 @@ async function openEquipModal(id){
     </div>
     <div class="modal-body">
       <input type="hidden" id="e_id" value="${esc(e.id)}">
-      <div class="form-row" style="margin-bottom:4px"><label>Nome do equipamento *</label><input class="inp" id="e_nome" value="${esc(e.nome)}" placeholder="Ex: Impressora Brother DCP-T730DW"></div>
+      <div class="form-row" style="margin-bottom:4px"><label>Nome do equipamento *</label><input class="inp" id="e_nome" value="${esc(e.nome)}" placeholder="Ex: Impressora Brother, ScanNCut, Máquina a Laser CO2"></div>
 
       <div class="modal-section-label">Depreciação da máquina</div>
       <p style="font-size:12.5px;color:var(--text-3);margin:-6px 0 12px">Quanto a máquina "gasta de si mesma" por hora de uso. Assim o preço já guarda dinheiro para a troca futura.</p>
@@ -1687,29 +1690,29 @@ async function openEquipModal(id){
         </div>
       </div>
 
-      <div class="modal-section-label">Recorte (lâmina e base) <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-3)">(só para máquinas de recorte, ex: ScanNCut)</span></div>
+      <div class="modal-section-label">Consumíveis que se desgastam <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-3)">(ex: lâmina/base de recorte, tubo de laser, ponteiras)</span></div>
       <label style="display:flex;align-items:center;gap:9px;cursor:pointer;margin-bottom:6px">
         <input type="checkbox" id="e_temRecorte" ${e.temRecorte?'checked':''} onchange="toggleRecorte()" style="width:17px;height:17px;accent-color:var(--brand)">
-        <span style="font-size:13.5px;font-weight:500">Esta máquina recorta (calcular desgaste de lâmina e base)</span>
+        <span style="font-size:13.5px;font-weight:500">Esta máquina tem peças que gastam com o uso e precisam ser trocadas</span>
       </label>
       <div id="e_recorteBox" style="display:${e.temRecorte?'block':'none'}">
-        <p style="font-size:12.5px;color:var(--text-3);margin:6px 0 12px">A lâmina se gasta pelo tempo de corte; a base perde aderência pelas folhas que passam. Cada uma entra sozinha no preço.</p>
+        <p style="font-size:12.5px;color:var(--text-3);margin:6px 0 12px">Consumível 1 se gasta pelo tempo de uso (ex: lâmina, tubo de laser). Consumível 2 se gasta pela quantidade de peças/folhas (ex: base de corte). Use só o que fizer sentido pra sua máquina — pode deixar o outro em branco.</p>
         <div class="form-grid">
-          <div class="form-row"><label>Preço de uma lâmina nova</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="e_laminaCusto" value="${e.laminaCusto||''}" placeholder="0,00" oninput="recalcEquip()"></div></div>
-          <div class="form-row"><label>Vida útil da lâmina (horas de corte)</label><input class="inp" type="number" step="0.5" id="e_laminaVida" value="${e.laminaVida||''}" placeholder="Ex: 10" oninput="recalcEquip()"></div>
-          <div class="form-row"><label>Preço de uma base nova</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="e_baseCusto" value="${e.baseCusto||''}" placeholder="0,00" oninput="recalcEquip()"></div></div>
-          <div class="form-row"><label>Vida útil da base (folhas)</label><input class="inp" type="number" id="e_baseVida" value="${e.baseVida||''}" placeholder="Ex: 60" oninput="recalcEquip()"></div>
+          <div class="form-row"><label>Consumível 1 — preço da peça nova</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="e_laminaCusto" value="${e.laminaCusto||''}" placeholder="0,00" oninput="recalcEquip()"></div></div>
+          <div class="form-row"><label>Consumível 1 — vida útil (horas de uso)</label><input class="inp" type="number" step="0.5" id="e_laminaVida" value="${e.laminaVida||''}" placeholder="Ex: 10" oninput="recalcEquip()"></div>
+          <div class="form-row"><label>Consumível 2 — preço da peça nova</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="e_baseCusto" value="${e.baseCusto||''}" placeholder="0,00" oninput="recalcEquip()"></div></div>
+          <div class="form-row"><label>Consumível 2 — vida útil (folhas/peças)</label><input class="inp" type="number" id="e_baseVida" value="${e.baseVida||''}" placeholder="Ex: 60" oninput="recalcEquip()"></div>
         </div>
         <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap">
           <div class="calc-box" style="flex:1;min-width:160px;margin:0">
-            <div class="label">Desgaste da lâmina</div>
+            <div class="label">Desgaste consumível 1</div>
             <div class="val" id="e_custoLamina" style="font-size:21px">${fmt6(e.custoLaminaHora||0)}</div>
-            <div class="note">por hora de corte</div>
+            <div class="note">por hora de uso</div>
           </div>
           <div class="calc-box" style="flex:1;min-width:160px;margin:0">
-            <div class="label">Desgaste da base</div>
+            <div class="label">Desgaste consumível 2</div>
             <div class="val" id="e_custoBase" style="font-size:21px">${fmt6(e.custoBaseFolha||0)}</div>
-            <div class="note">por folha cortada</div>
+            <div class="note">por folha/peça</div>
           </div>
         </div>
       </div>
@@ -2242,7 +2245,7 @@ async function drawMatPicker(){
   if(mats.length===0){box.innerHTML=`<p style="color:var(--text-3);font-size:13px">Nenhum material cadastrado. Vá em Materiais primeiro.</p>`;return;}
   window._matsCache=mats;
   box.innerHTML=`
-    <div class="form-row"><label>🔎 Buscar material</label><input class="inp" id="mp_busca" placeholder="Digite para filtrar..." oninput="filtrarMatSelect()"></div>
+    <div class="form-row"><label>Buscar material</label><input class="inp" id="mp_busca" placeholder="Digite para filtrar..." oninput="filtrarMatSelect()"></div>
     <div class="item-add-row">
       <div class="form-row"><label>Material</label><select class="inp" id="mp_sel"></select></div>
       <div class="form-row" style="max-width:120px"><label>Quantidade</label><input class="inp" type="number" step="0.01" id="mp_qtd" placeholder="0"></div>
@@ -2307,7 +2310,7 @@ async function drawEqPicker(){
     <div class="form-row"><label>Equipamento</label><select class="inp" id="ep_sel" onchange="updateEqMode()">${opts}</select></div>
     <div class="form-row" style="max-width:160px"><label>Cobrar por</label><select class="inp" id="ep_modo" onchange="updateEqUnit()"></select></div>
     <div class="form-row" style="max-width:120px"><label id="ep_unitLabel">Minutos</label><input class="inp" type="number" step="0.01" id="ep_qtd" placeholder="0"></div>
-    <div class="form-row" style="max-width:120px;display:none" id="ep_qtd2box"><label>Folhas</label><input class="inp" type="number" id="ep_qtd2" placeholder="0"></div>
+    <div class="form-row" style="max-width:120px;display:none" id="ep_qtd2box"><label>Folhas/peças</label><input class="inp" type="number" id="ep_qtd2" placeholder="0"></div>
     <button class="btn-mini" onclick="addEqItem()">+ Adicionar</button>
   </div>`;
   await updateEqMode();
@@ -2319,7 +2322,7 @@ async function updateEqMode(){
   const modo=document.getElementById('ep_modo');
   let opts=`<option value="tempo">Tempo (depreciação)</option>`;
   if(e&&e.temTinta){opts+=`<option value="pb">Impressão P&B</option><option value="cor">Impressão colorida</option>`;}
-  if(e&&e.temRecorte){opts+=`<option value="recorte">Recorte (lâmina + base)</option>`;}
+  if(e&&e.temRecorte){opts+=`<option value="recorte">Consumíveis (desgaste por uso)</option>`;}
   modo.innerHTML=opts;
   updateEqUnit();
 }
@@ -2328,7 +2331,7 @@ function updateEqUnit(){
   const lbl=document.getElementById('ep_unitLabel');
   const box2=document.getElementById('ep_qtd2box');
   if(modo==='recorte'){
-    lbl.textContent='Min. de corte';
+    lbl.textContent='Minutos de uso';
     if(box2)box2.style.display='block';
   }else{
     lbl.textContent = modo==='tempo'?'Minutos':'Páginas';
@@ -2365,7 +2368,7 @@ function drawEqSel(){
       const cLamina=(e.custoLaminaHora||0)*((e.minutos||0)/60);
       const cBase=(e.custoBaseFolha||0)*(e.folhas||0);
       sub=cLamina+cBase;
-      detail=`${e.minutos||0} min lâmina + ${e.folhas||0} folhas base`;
+      detail=`${e.minutos||0} min consumível 1 + ${e.folhas||0} folhas/peças consumível 2`;
     }
     else{sub=e.custoCor*e.paginas;detail=`${e.paginas} pág. cor × ${fmt6(e.custoCor)}`;}
     return `<div class="sel-item">
@@ -2814,12 +2817,12 @@ async function ajusteRapidoModal(){
   window._ajusteMats=mats;
   openModal(`
     <div class="modal-head">
-      <h3>✏️ Ajuste rápido de estoque</h3>
+      <h3>Ajuste rápido de estoque</h3>
       <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
       <p style="font-size:12.5px;color:var(--text-2);margin-bottom:14px">Corrija o número direto quando errar uma impressão, contar sobra, ou perceber diferença. Não precisa montar pedido nem compra pra isso.</p>
-      <div class="form-row"><label>🔎 Buscar material</label><input class="inp" id="aj_busca" placeholder="Digite para filtrar..." oninput="drawAjusteLista()"></div>
+      <div class="form-row"><label>Buscar material</label><input class="inp" id="aj_busca" placeholder="Digite para filtrar..." oninput="drawAjusteLista()"></div>
       <div id="ajusteLista" style="margin-top:12px;max-height:340px;overflow-y:auto"></div>
     </div>
     <div class="modal-foot">
@@ -3031,8 +3034,8 @@ async function renderOrdersPage(main){
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <div class="view-toggle">
-          <button class="vt-btn ${ordersView==='lista'?'active':''}" onclick="setOrdersView('lista')">📋 Lista</button>
-          <button class="vt-btn ${ordersView==='quadro'?'active':''}" onclick="setOrdersView('quadro')">🗂️ Quadro</button>
+          <button class="vt-btn ${ordersView==='lista'?'active':''}" onclick="setOrdersView('lista')">Lista</button>
+          <button class="vt-btn ${ordersView==='quadro'?'active':''}" onclick="setOrdersView('quadro')">Quadro</button>
         </div>
         <button class="btn-add" onclick="goTab('pricing')">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -3071,10 +3074,10 @@ function drawOrdersView(){
    QUADRO KANBAN (estilo Trello) — arraste os pedidos entre colunas
    ============================================================ */
 const KANBAN_COLS=[
-  {status:'design',label:'🎨 Arte a fazer',color:'#9333EA'},
-  {status:'producao',label:'⚙️ Em produção',color:'#5A6472'},
-  {status:'pronto',label:'✅ Pronto',color:'#1A8A4E'},
-  {status:'entregue',label:'📦 Entregue',color:'#8A93A1'},
+  {status:'design',label:'Arte a fazer',color:'#9333EA'},
+  {status:'producao',label:'Em produção',color:'#5A6472'},
+  {status:'pronto',label:'Pronto',color:'#1A8A4E'},
+  {status:'entregue',label:'Entregue',color:'#8A93A1'},
 ];
 async function drawKanban(){
   const all=await dbAll('orders');
@@ -3096,7 +3099,7 @@ async function drawKanban(){
               <div class="kc-desc">${esc(o.descricao||'Sem descrição')}</div>
               <div class="kc-cliente">${esc(cMap[o.clienteId]||'Sem cliente')}</div>
               <div class="kc-foot">
-                ${prazoTxt?`<span class="kc-prazo ${late?'late':''}">${late?'⚠️ ':'📅 '}${prazoTxt}</span>`:'<span></span>'}
+                ${prazoTxt?`<span class="kc-prazo ${late?'late':''}">${''}${prazoTxt}</span>`:'<span></span>'}
                 <span class="kc-valor">${fmt(o.precoFinal)}</span>
               </div>
             </div>`;
