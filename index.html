@@ -769,7 +769,8 @@ const DEFAULT_CONFIG={
   ],
   bancos:[{id:'caixa',nome:'Dinheiro / Caixa'}],
   catReceita:['Venda de pedido','Outras receitas'],
-  catDespesa:['Compra de material','Despesa fixa','Terceirizado','Brindes/Uso interno','Outras despesas']
+  catDespesa:['Compra de material','Despesa fixa','Terceirizado','Brindes/Uso interno','Outras despesas'],
+  catServicos:['Gráfica rápida','Laser e Gravação']
 };
 
 /* ============================================================
@@ -1348,7 +1349,7 @@ async function delContact(id,nome){
    Calcula custo por unidade de uso automaticamente.
    Tipos: folha/unidade, metro linear, peça avulsa.
    ============================================================ */
-let matSearch='', matTipo='folha';
+let matSearch='', matTipo='folha', matCatFilter='todas';
 const MAT_TIPOS={
   folha:{label:'Por folha / unidade',desc:'Papel, adesivo em folha. Compra em pacote, usa por folha.',compraLabel:'Itens no pacote',usoLabel:'folha'},
   metro:{label:'Por metro linear',desc:'BOPP, vinil, lona em bobina. Compra a bobina, usa em metros.',compraLabel:'Metros na bobina',usoLabel:'metro'},
@@ -1385,7 +1386,18 @@ async function renderMaterialsPage(main){
         <input id="matSearchInp" placeholder="Buscar material..." value="${esc(matSearch)}" oninput="matSearch=this.value;drawMaterials()">
       </div>
     </div>
+    <div class="filter-pills" id="matCatPills">
+      <button class="pill ${matCatFilter==='todas'?'active':''}" onclick="setMatCatFilter('todas')">Todas</button>
+      ${(CONFIG.catServicos||[]).map(c=>`<button class="pill ${matCatFilter===c?'active':''}" onclick="setMatCatFilter('${esc(c)}')">${esc(c)}</button>`).join('')}
+      <button class="pill ${matCatFilter==='sem'?'active':''}" onclick="setMatCatFilter('sem')">Sem categoria</button>
+    </div>
     <div id="matTable"></div>`;
+  drawMaterials();
+}
+function setMatCatFilter(c){
+  matCatFilter=c;
+  document.querySelectorAll('#matCatPills .pill').forEach(p=>p.classList.remove('active'));
+  event.target.classList.add('active');
   drawMaterials();
 }
 async function drawMaterials(){
@@ -1394,6 +1406,8 @@ async function drawMaterials(){
   const supMap={};suppliers.forEach(s=>supMap[s.id]=s.nome);
   const q=matSearch.toLowerCase();
   if(q) list=list.filter(m=>(m.nome||'').toLowerCase().includes(q));
+  if(matCatFilter==='sem') list=list.filter(m=>!m.categoria);
+  else if(matCatFilter!=='todas') list=list.filter(m=>m.categoria===matCatFilter);
   list.sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
   const box=document.getElementById('matTable');
   if(!box)return;
@@ -1425,7 +1439,7 @@ async function drawMaterials(){
       const baixo=m.estoqueMin>0&&est<=m.estoqueMin;
       const fornNome=m.fornecedorId&&supMap[m.fornecedorId]?supMap[m.fornecedorId]:(m.marca||'');
       return `<tr>
-        <td><div class="t-main">${esc(m.nome)}</div>${fornNome?`<div class="t-sub">${esc(fornNome)}</div>`:''}</td>
+        <td><div class="t-main">${esc(m.nome)}</div>${m.categoria?`<div class="t-sub"><span class="badge">${esc(m.categoria)}</span></div>`:(fornNome?`<div class="t-sub">${esc(fornNome)}</div>`:'')}</td>
         <td><span class="badge blue">${t.label.replace('Por ','')}</span></td>
         <td class="t-right"><b style="color:var(--brand)">${fmt6(m.custoUnit)}</b><div class="t-sub">por ${t.usoLabel}</div></td>
         <td class="t-right">
@@ -1441,12 +1455,13 @@ async function drawMaterials(){
       </tr>`;}).join('')}</tbody></table></div></div>`;
 }
 async function openMaterialModal(id){
-  let m={id:'',nome:'',marca:'',fornecedorId:'',tipo:'folha',valorCompra:0,qtdCompra:1,custoUnit:0,estoque:0,estoqueMin:0};
+  let m={id:'',nome:'',marca:'',fornecedorId:'',categoria:'',tipo:'folha',valorCompra:0,qtdCompra:1,custoUnit:0,estoque:0,estoqueMin:0};
   if(id){const found=await dbGet('materials',id);if(found)m={...m,...found};}
   matTipo=m.tipo||'folha';
   const suppliers=await dbAll('suppliers');
   suppliers.sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
   const supOpts=`<option value="">— Nenhum / não informar —</option>`+suppliers.map(s=>`<option value="${s.id}" ${m.fornecedorId===s.id?'selected':''}>${esc(s.nome)}</option>`).join('');
+  const catOpts=`<option value="">— Sem categoria —</option>`+(CONFIG.catServicos||[]).map(c=>`<option ${m.categoria===c?'selected':''}>${esc(c)}</option>`).join('');
   openModal(`
     <div class="modal-head">
       <h3>${id?'Editar':'Novo'} material</h3>
@@ -1457,6 +1472,7 @@ async function openMaterialModal(id){
       <input type="hidden" id="m_estoque" value="${m.estoque||0}">
       <div class="form-grid">
         <div class="form-row" style="grid-column:1/-1"><label>Nome do material *</label><input class="inp" id="m_nome" value="${esc(m.nome)}" placeholder="Ex: Papel fotográfico A4 glossy"></div>
+        <div class="form-row"><label>Categoria <span class="help">(pra organizar e filtrar)</span></label><select class="inp" id="m_categoria">${catOpts}</select></div>
         <div class="form-row"><label>Fornecedor da compra</label>
           <select class="inp" id="m_forn">${supOpts}</select>
           ${suppliers.length===0?'<span class="help">Cadastre fornecedores na aba Clientes para escolher aqui.</span>':''}
@@ -1515,7 +1531,7 @@ async function saveMaterial(){
   const custoUnit=valor/qtd;
   const id=val('m_id')||uid();
   const sel=document.getElementById('m_forn');
-  await dbPut('materials',{id,nome,marca:val('m_marca'),fornecedorId:sel?sel.value:'',tipo:matTipo,
+  await dbPut('materials',{id,nome,marca:val('m_marca'),fornecedorId:sel?sel.value:'',categoria:val('m_categoria'),tipo:matTipo,
     valorCompra:valor,qtdCompra:qtd,custoUnit,
     estoque:num('m_estoqueAtual'),estoqueMin:num('m_estoqueMin')});
   closeModal();toast('Material salvo');drawMaterials();
@@ -1791,7 +1807,7 @@ function resetOrc(){ orc=novoOrc(); }
 
 function novoOrc(){
   return {
-    clienteId:'', descricao:'', cestaQtd:1,
+    clienteId:'', descricao:'', cestaQtd:1, categoria:'',
     materiais:[],   // {matId, nome, tipo, custoUnit, qtd}
     equipamentos:[],// {eqId, nome, tipo:'tempo'|'pb'|'cor', minutos, paginas, deprecHora, custoPB, custoCor}
     maoObraMin:0,   // minutos de trabalho manual
@@ -2128,6 +2144,10 @@ async function renderPricingForm(){
           <div class="ps-sub">O que será feito. O cliente já foi escolhido no orçamento.</div>
           <div class="form-grid">
             <div class="form-row" style="grid-column:1/-1"><label>Descrição do trabalho *</label><input class="inp" id="o_desc" value="${esc(orc.descricao)}" placeholder="Ex: 100 cartões de visita coloridos" oninput="orc.descricao=this.value"></div>
+            <div class="form-row"><label>Categoria <span class="help">(filtra os materiais abaixo)</span></label><select class="inp" id="o_categoria" onchange="orc.categoria=this.value;filtrarMatSelect()">
+              <option value="">— Todas —</option>
+              ${(CONFIG.catServicos||[]).map(c=>`<option ${orc.categoria===c?'selected':''}>${esc(c)}</option>`).join('')}
+            </select></div>
           </div>
         </div>
 
@@ -2257,13 +2277,19 @@ async function drawMatPicker(){
 function filtrarMatSelect(){
   const termo=(document.getElementById('mp_busca')?.value||'').toLowerCase().trim();
   const mats=window._matsCache||[];
-  const filtrados=termo?mats.filter(m=>(m.nome||'').toLowerCase().includes(termo)):mats;
+  let filtrados=termo?mats.filter(m=>(m.nome||'').toLowerCase().includes(termo)):mats;
+  // se o produto tem categoria definida, prioriza materiais da mesma categoria (sem esconder os demais)
+  if(orc&&orc.categoria&&!termo){
+    const daCategoria=filtrados.filter(m=>m.categoria===orc.categoria);
+    const outros=filtrados.filter(m=>m.categoria!==orc.categoria);
+    filtrados=[...daCategoria,...outros];
+  }
   const sel=document.getElementById('mp_sel');
   if(!sel)return;
   if(filtrados.length===0){
     sel.innerHTML=`<option value="">Nenhum material encontrado</option>`;return;
   }
-  sel.innerHTML=filtrados.map(m=>`<option value="${m.id}">${esc(m.nome)} — ${fmt6(m.custoUnit)}/${(MAT_TIPOS[m.tipo]||MAT_TIPOS.folha).usoLabel}</option>`).join('');
+  sel.innerHTML=filtrados.map(m=>`<option value="${m.id}">${esc(m.nome)}${m.categoria?' ['+esc(m.categoria)+']':''} — ${fmt6(m.custoUnit)}/${(MAT_TIPOS[m.tipo]||MAT_TIPOS.folha).usoLabel}</option>`).join('');
 }
 async function addMatItem(){
   const id=document.getElementById('mp_sel').value;
@@ -2447,6 +2473,7 @@ async function atualizarCustosReceita(receita){
   });
   return r;
 }
+let prodCatFilter='todas';
 async function renderProductsPage(main){
   main.innerHTML=`
     <div class="page-head-row">
@@ -2459,16 +2486,27 @@ async function renderProductsPage(main){
         Criar produto (na precificação)
       </button>
     </div>
+    <div class="filter-pills" id="prodCatPills">
+      <button class="pill ${prodCatFilter==='todas'?'active':''}" onclick="setProdCatFilter('todas')">Todas</button>
+      ${(CONFIG.catServicos||[]).map(c=>`<button class="pill ${prodCatFilter===c?'active':''}" onclick="setProdCatFilter('${esc(c)}')">${esc(c)}</button>`).join('')}
+    </div>
     <div id="productsList"></div>`;
   drawProducts();
 }
+function setProdCatFilter(c){
+  prodCatFilter=c;
+  document.querySelectorAll('#prodCatPills .pill').forEach(p=>p.classList.remove('active'));
+  event.target.classList.add('active');
+  drawProducts();
+}
 async function drawProducts(){
-  const prods=(await dbAll('products')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  let prods=(await dbAll('products')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  if(prodCatFilter!=='todas')prods=prods.filter(p=>(p.receita&&p.receita.categoria)===prodCatFilter);
   const box=document.getElementById('productsList');if(!box)return;
   if(prods.length===0){
     box.innerHTML=`<div class="tbl-wrap"><div class="empty-state">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON.materials}</svg>
-      <h3>Nenhum produto salvo</h3>
+      <h3>Nenhum produto ${prodCatFilter!=='todas'?'nesta categoria':'salvo'}</h3>
       <p>Quando você precificar algo que faz sempre (ex: bloquinho A6), clique em "Salvar como produto" na tela de precificação. Ele fica guardado aqui para reusar.</p>
     </div></div>`;return;
   }
@@ -2482,10 +2520,11 @@ async function drawProducts(){
     linhas.push({p,preco:c.precoFinal,custo:c.custoTotal});
   }
   box.innerHTML=`<div class="tbl-wrap"><div class="tbl-scroll"><table>
-    <thead><tr><th>Produto</th><th>Tipo</th><th class="t-right">Custo atual</th><th class="t-right">Preço atual</th><th class="t-right">Ações</th></tr></thead>
+    <thead><tr><th>Produto</th><th>Categoria</th><th>Tipo</th><th class="t-right">Custo atual</th><th class="t-right">Preço atual</th><th class="t-right">Ações</th></tr></thead>
     <tbody>${linhas.map(({p,preco,custo})=>`
       <tr>
         <td><div class="t-main">${esc(p.nome)}</div>${p.obs?`<div class="t-sub">${esc(p.obs)}</div>`:''}</td>
+        <td>${p.receita.categoria?`<span class="badge">${esc(p.receita.categoria)}</span>`:'<span class="t-sub">—</span>'}</td>
         <td><span class="t-sub">${p.receita.modo==='terceirizado'?'Terceirizado':(p.receita.modo==='avancado'?'Avançado':'Rápido')}</span></td>
         <td class="t-right">${fmt(custo)}</td>
         <td class="t-right"><b style="color:var(--brand)">${fmt(preco)}</b></td>
@@ -2602,6 +2641,10 @@ async function renderTerceirizadoForm(){
           <div class="ps-sub">O que será feito. O cliente já foi escolhido no orçamento.</div>
           <div class="form-grid">
             <div class="form-row" style="grid-column:1/-1"><label>Descrição do trabalho *</label><input class="inp" id="o_desc" value="${esc(orc.descricao)}" placeholder="Ex: 100 cartões de visita (gráfica online)" oninput="orc.descricao=this.value"></div>
+            <div class="form-row"><label>Categoria <span class="help">(opcional)</span></label><select class="inp" id="o_categoria" onchange="orc.categoria=this.value">
+              <option value="">— Todas —</option>
+              ${(CONFIG.catServicos||[]).map(c=>`<option ${orc.categoria===c?'selected':''}>${esc(c)}</option>`).join('')}
+            </select></div>
           </div>
         </div>
 
@@ -4205,6 +4248,7 @@ async function init(){
   if(!CONFIG.catReceita)CONFIG.catReceita=['Venda de pedido','Outras receitas'];
   if(!CONFIG.catDespesa)CONFIG.catDespesa=['Compra de material','Despesa fixa','Terceirizado','Brindes/Uso interno','Outras despesas'];
   if(!CONFIG.catDespesa.includes('Brindes/Uso interno'))CONFIG.catDespesa.splice(CONFIG.catDespesa.length-1,0,'Brindes/Uso interno');
+  if(!CONFIG.catServicos)CONFIG.catServicos=['Gráfica rápida','Laser e Gravação'];
   await dbPut('config',CONFIG);
   buildNav();
   renderPage('dashboard');
