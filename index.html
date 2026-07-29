@@ -1848,10 +1848,13 @@ function novoOrc(){
     temArte:false, arteCobMod:'fixo', arteCobValor:0, arteCobMin:0,
     // terceirizado:
     custoSite:0,       // o que você paga no site
+    freteTerc:0,       // frete pago separado (terceirizado)
     arteMod:'fixo',    // 'fixo' | 'tempo'
     arteValor:0,       // valor fixo da arte
     arteMin:0,         // minutos de arte (se por tempo)
-    lucroFixo:0,       // lucro fixo definido por você
+    lucroMod:'fixo',   // 'fixo' | 'percentual'
+    lucroFixo:0,       // lucro fixo definido por você (R$)
+    lucroPercentual:0, // lucro como % sobre o preço final
     prazoDias:0        // dias prometidos pelo site
   };
 }
@@ -1864,13 +1867,21 @@ function calcOrc(o){
   // ===== MODO TERCEIRIZADO: lógica própria =====
   if(o.modo==='terceirizado'||priceMode==='terceirizado'){
     const custoSite=o.custoSite||0;
+    const freteTerc=o.freteTerc||0;
     const custoArte = o.arteMod==='tempo' ? valorHora*((o.arteMin||0)/60) : (o.arteValor||0);
-    const custoTotal=custoSite+custoArte;
-    const lucro=o.lucroFixo||0;
-    const precoFinal=custoTotal+lucro;
+    const custoTotal=custoSite+freteTerc+custoArte;
+    let lucro, precoFinal;
+    if(o.lucroMod==='percentual'){
+      const pct=o.lucroPercentual||0;
+      precoFinal = pct<100 ? custoTotal/(1-pct/100) : custoTotal;
+      lucro = precoFinal-custoTotal;
+    }else{
+      lucro=o.lucroFixo||0;
+      precoFinal=custoTotal+lucro;
+    }
     const margemReal = precoFinal>0 ? (lucro/precoFinal)*100 : 0;
     return {custoMat:0,custoEquip:0,custoMO:0,custoAcab:0,custoFixo:0,
-            custoSite,custoArte,custoTotal,precoFinal,lucro,margem:margemReal,valorHora,terceirizado:true};
+            custoSite,freteTerc,custoArte,custoTotal,precoFinal,lucro,margem:margemReal,valorHora,terceirizado:true};
   }
 
   // ===== MODOS RÁPIDO E AVANÇADO =====
@@ -2696,6 +2707,7 @@ async function renderTerceirizadoForm(){
           <div class="ps-sub">Quanto você vai pagar na gráfica online ou fornecedor que vai produzir.</div>
           <div class="item-add-row">
             <div class="form-row" style="max-width:200px"><label>Valor que você paga *</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="t_site" value="${orc.custoSite||''}" placeholder="0,00" oninput="orc.custoSite=parseFloat(this.value)||0;refreshSummaryT()"></div></div>
+            <div class="form-row" style="max-width:200px"><label>Frete <span class="help">(se pagar separado)</span></label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="t_frete" value="${orc.freteTerc||''}" placeholder="0,00" oninput="orc.freteTerc=parseFloat(this.value)||0;refreshSummaryT()"></div></div>
           </div>
         </div>
 
@@ -2728,9 +2740,20 @@ async function renderTerceirizadoForm(){
 
         <div class="price-step">
           <h3><span class="ps-num">5</span> Seu lucro</h3>
-          <div class="ps-sub">Quanto você quer ganhar nessa venda. Valor fixo, em reais.</div>
-          <div class="item-add-row">
-            <div class="form-row" style="max-width:200px"><label>Lucro desejado</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="t_lucro" value="${orc.lucroFixo||''}" placeholder="0,00" oninput="orc.lucroFixo=parseFloat(this.value)||0;refreshSummaryT()"></div></div>
+          <div class="ps-sub">Quanto você quer ganhar nessa venda. Em reais ou em porcentagem.</div>
+          <div class="radio-grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+            <div class="radio-opt ${(orc.lucroMod||'fixo')==='fixo'?'sel':''}" id="t_lucroFixo" onclick="setLucroMod('fixo')">
+              <div class="ro-title">Valor fixo</div><div class="ro-desc">Eu digito quanto quero ganhar em R$</div>
+            </div>
+            <div class="radio-opt ${orc.lucroMod==='percentual'?'sel':''}" id="t_lucroPerc" onclick="setLucroMod('percentual')">
+              <div class="ro-title">Porcentagem</div><div class="ro-desc">Margem sobre o preço final</div>
+            </div>
+          </div>
+          <div id="t_lucroFixoBox" style="display:${(orc.lucroMod||'fixo')==='fixo'?'block':'none'}">
+            <div class="item-add-row"><div class="form-row" style="max-width:200px"><label>Lucro desejado</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="t_lucro" value="${orc.lucroFixo||''}" placeholder="0,00" oninput="orc.lucroFixo=parseFloat(this.value)||0;refreshSummaryT()"></div></div></div>
+          </div>
+          <div id="t_lucroPercBox" style="display:${orc.lucroMod==='percentual'?'block':'none'}">
+            <div class="item-add-row"><div class="form-row" style="max-width:200px"><label>Margem desejada</label><div class="inp-prefix" style="position:relative"><input class="inp" type="number" step="0.5" id="t_lucroPct" value="${orc.lucroPercentual||''}" placeholder="0" oninput="orc.lucroPercentual=parseFloat(this.value)||0;refreshSummaryT()"><span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:13px">%</span></div></div></div>
           </div>
         </div>
       </div>
@@ -2760,18 +2783,29 @@ function setArteMod(m){
   document.getElementById('t_arteTempoBox').style.display=m==='tempo'?'block':'none';
   refreshSummaryT();
 }
+function setLucroMod(m){
+  orc.lucroMod=m;
+  document.getElementById('t_lucroFixo').classList.toggle('sel',m==='fixo');
+  document.getElementById('t_lucroPerc').classList.toggle('sel',m==='percentual');
+  document.getElementById('t_lucroFixoBox').style.display=m==='fixo'?'block':'none';
+  document.getElementById('t_lucroPercBox').style.display=m==='percentual'?'block':'none';
+  refreshSummaryT();
+}
 function refreshSummaryT(){
   const box=document.getElementById('sumBodyT');if(!box)return;
   const c=calcOrc(orc);
   let arteLine = orc.arteMod==='tempo'
     ? `<div class="sum-line"><span class="sl-label">Arte (${orc.arteMin||0} min)</span><span class="sl-val">${fmt(c.custoArte)}</span></div>`
     : `<div class="sum-line"><span class="sl-label">Arte (fixo)</span><span class="sl-val">${fmt(c.custoArte)}</span></div>`;
+  const freteLine = c.freteTerc>0?`<div class="sum-line"><span class="sl-label">Frete</span><span class="sl-val">${fmt(c.freteTerc)}</span></div>`:'';
+  const lucroLabel = orc.lucroMod==='percentual'?`Seu lucro (${orc.lucroPercentual||0}%)`:'Seu lucro';
   box.innerHTML=`
     <div class="sum-line"><span class="sl-label">Custo no site</span><span class="sl-val">${fmt(c.custoSite)}</span></div>
+    ${freteLine}
     ${arteLine}
     <div class="sum-divider"></div>
     <div class="sum-line"><span class="sl-label" style="font-weight:600">Custo total</span><span class="sl-val">${fmt(c.custoTotal)}</span></div>
-    <div class="sum-line"><span class="sl-label">Seu lucro</span><span class="sl-val" style="color:#1A8A4E">${fmt(c.lucro)}</span></div>
+    <div class="sum-line"><span class="sl-label">${lucroLabel}</span><span class="sl-val" style="color:#1A8A4E">${fmt(c.lucro)}</span></div>
     <div class="sum-total"><span class="st-label">PREÇO FINAL</span><span class="st-val">${fmt(c.precoFinal)}</span></div>
     ${orc.prazoDias>0?`<div class="sum-margin">Prazo: ${orc.prazoDias} dia${orc.prazoDias!==1?'s':''}</div>`:''}`;
 }
@@ -3359,6 +3393,7 @@ async function orderDetail(id){
   }else if(o.modo==='terceirizado'){
     const cArte = o.arteMod==='tempo' ? (calcOrc(o).custoArte) : (o.arteValor||0);
     comp=`<div class="sum-line"><span class="sl-label">Custo no site</span><span class="sl-val">${fmt(o.custoSite||0)}</span></div>
+      ${o.freteTerc>0?`<div class="sum-line"><span class="sl-label">Frete</span><span class="sl-val">${fmt(o.freteTerc)}</span></div>`:''}
       ${cArte>0?`<div class="sum-line"><span class="sl-label">Arte</span><span class="sl-val">${fmt(cArte)}</span></div>`:''}`;
   }else{
     comp=`${(o.materiais||[]).map(m=>`<div class="sum-line"><span class="sl-label">${esc(m.nome)} (${m.qtd} ${(t[m.tipo]||t.folha).usoLabel}${m.qtd!==1?'s':''})</span><span class="sl-val">${fmt(m.custoUnit*m.qtd)}</span></div>`).join('')}
