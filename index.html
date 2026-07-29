@@ -811,7 +811,7 @@ async function doLogin(){
     sessionStorage.setItem('mp_logged','1');
     sessionStorage.setItem('mp_user',found.id);
     document.getElementById('loginScreen').style.display='none';
-    document.getElementById('app').style.display='flex';
+    document.getElementById('app').style.display='block';
     err.textContent='';
   }else{
     err.textContent='Usuário ou senha incorretos.';
@@ -4333,7 +4333,7 @@ async function init(){
   // Se já estava logado nesta sessão, pula o login
   if(sessionStorage.getItem('mp_logged')==='1'){
     document.getElementById('loginScreen').style.display='none';
-    document.getElementById('app').style.display='flex';
+    document.getElementById('app').style.display='block';
   }
 }
 init();
