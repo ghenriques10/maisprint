@@ -1485,9 +1485,16 @@ async function openMaterialModal(id){
       </label>
       <div id="m_dimBox" style="display:${m.largura?'block':'none'}">
         <p style="font-size:12.5px;color:var(--text-3);margin:6px 0 12px">Com o tamanho da chapa, na precificação você informa só a largura x altura da peça e o sistema calcula a fatia certa do custo — sem precisar chutar.</p>
+        <div class="form-row" style="max-width:160px;margin-bottom:10px">
+          <label>Unidade</label>
+          <select class="inp" id="m_dimUnit" data-prev="${m.dimUnit||'cm'}" onchange="convertDimUnit('m_largura','m_altura','m_dimUnit')">
+            <option value="cm" ${(m.dimUnit||'cm')==='cm'?'selected':''}>Centímetros (cm)</option>
+            <option value="mm" ${m.dimUnit==='mm'?'selected':''}>Milímetros (mm)</option>
+          </select>
+        </div>
         <div class="form-grid">
-          <div class="form-row"><label>Largura da chapa (cm)</label><input class="inp" type="number" step="0.1" id="m_largura" value="${m.largura||''}" placeholder="Ex: 30"></div>
-          <div class="form-row"><label>Altura da chapa (cm)</label><input class="inp" type="number" step="0.1" id="m_altura" value="${m.altura||''}" placeholder="Ex: 20"></div>
+          <div class="form-row"><label>Largura da chapa</label><input class="inp" type="number" step="0.1" id="m_largura" value="${m.dimUnit==='mm'?(m.largura?(m.largura*10).toFixed(1):''):(m.largura||'')}" placeholder="Ex: 30"></div>
+          <div class="form-row"><label>Altura da chapa</label><input class="inp" type="number" step="0.1" id="m_altura" value="${m.dimUnit==='mm'?(m.altura?(m.altura*10).toFixed(1):''):(m.altura||'')}" placeholder="Ex: 20"></div>
         </div>
       </div>
       <div class="modal-section-label">Como esse material é cobrado?</div>
@@ -1534,6 +1541,20 @@ function recalcMat(){
   const t=MAT_TIPOS[matTipo];
   document.getElementById('m_calcNote').textContent=valor>0&&qtd>0?`${fmt(valor)} ÷ ${qtd} ${t.usoLabel}${qtd>1?'s':''} = ${fmt6(custo)} por ${t.usoLabel}`:'Preencha o valor e a quantidade.';
 }
+// Converte os valores digitados quando o usuário troca a unidade (cm <-> mm), sem perder o número
+function convertDimUnit(idLarg,idAlt,idUnit){
+  const sel=document.getElementById(idUnit);
+  const prev=sel.dataset.prev||'cm';
+  const novo=sel.value;
+  if(prev===novo)return;
+  const fator = (prev==='cm'&&novo==='mm') ? 10 : (prev==='mm'&&novo==='cm') ? 0.1 : 1;
+  [idLarg,idAlt].forEach(id=>{
+    const inp=document.getElementById(id);
+    if(inp&&inp.value){ inp.value=(parseFloat(inp.value)*fator).toFixed(2).replace(/\.00$/,''); }
+  });
+  sel.dataset.prev=novo;
+  if(typeof atualizaCalcArea==='function')atualizaCalcArea();
+}
 async function saveMaterial(){
   const nome=val('m_nome');
   if(!nome){toast('Informe o nome do material');document.getElementById('m_nome').focus();return;}
@@ -1543,9 +1564,11 @@ async function saveMaterial(){
   const id=val('m_id')||uid();
   const sel=document.getElementById('m_forn');
   const temDim=document.getElementById('m_temDim').checked;
+  const dimUnit=document.getElementById('m_dimUnit')?document.getElementById('m_dimUnit').value:'cm';
+  const fatorParaCm=dimUnit==='mm'?0.1:1;
   await dbPut('materials',{id,nome,marca:val('m_marca'),fornecedorId:sel?sel.value:'',categoria:val('m_categoria'),tipo:matTipo,
     valorCompra:valor,qtdCompra:qtd,custoUnit,
-    largura:temDim?num('m_largura'):0, altura:temDim?num('m_altura'):0,
+    largura:temDim?num('m_largura')*fatorParaCm:0, altura:temDim?num('m_altura')*fatorParaCm:0, dimUnit:temDim?dimUnit:'cm',
     estoque:num('m_estoqueAtual'),estoqueMin:num('m_estoqueMin')});
   closeModal();toast('Material salvo');drawMaterials();
 }
@@ -2339,8 +2362,14 @@ async function drawMatPicker(){
     <div class="item-add-row">
       <div class="form-row"><label>Material</label><select class="inp" id="mp_sel" onchange="onMatSelChange()"></select></div>
       <div class="form-row" style="max-width:120px" id="mp_qtdBox"><label>Quantidade</label><input class="inp" type="number" step="0.01" id="mp_qtd" placeholder="0"></div>
-      <div class="form-row" style="max-width:110px;display:none" id="mp_largBox"><label>Largura (cm)</label><input class="inp" type="number" step="0.1" id="mp_larg" placeholder="0" oninput="atualizaCalcArea()"></div>
-      <div class="form-row" style="max-width:110px;display:none" id="mp_altBox"><label>Altura (cm)</label><input class="inp" type="number" step="0.1" id="mp_alt" placeholder="0" oninput="atualizaCalcArea()"></div>
+      <div class="form-row" style="max-width:95px;display:none" id="mp_largBox"><label>Largura</label><input class="inp" type="number" step="0.1" id="mp_larg" placeholder="0" oninput="atualizaCalcArea()"></div>
+      <div class="form-row" style="max-width:95px;display:none" id="mp_altBox"><label>Altura</label><input class="inp" type="number" step="0.1" id="mp_alt" placeholder="0" oninput="atualizaCalcArea()"></div>
+      <div class="form-row" style="max-width:90px;display:none" id="mp_unitBox"><label>Unidade</label>
+        <select class="inp" id="mp_unit" data-prev="cm" onchange="convertDimUnit('mp_larg','mp_alt','mp_unit')">
+          <option value="cm">cm</option>
+          <option value="mm">mm</option>
+        </select>
+      </div>
       <button class="btn-mini" onclick="addMatItem()">+ Adicionar</button>
     </div>
     <div id="mp_areaInfo" style="font-size:12px;color:var(--text-3);margin-top:4px"></div>`;
@@ -2354,6 +2383,7 @@ function setMatAddMode(m){
   document.getElementById('mp_qtdBox').style.display=m==='qtd'?'block':'none';
   document.getElementById('mp_largBox').style.display=m==='area'?'block':'none';
   document.getElementById('mp_altBox').style.display=m==='area'?'block':'none';
+  document.getElementById('mp_unitBox').style.display=m==='area'?'block':'none';
   atualizaCalcArea();
 }
 function onMatSelChange(){ atualizaCalcArea(); }
@@ -2369,10 +2399,13 @@ function atualizaCalcArea(){
   }
   const largPeca=num('mp_larg'), altPeca=num('mp_alt');
   if(largPeca<=0||altPeca<=0){info.textContent=`Chapa: ${m.largura}×${m.altura}cm`;return;}
-  const areaChapa=m.largura*m.altura, areaPeca=largPeca*altPeca;
+  const unit=document.getElementById('mp_unit')?document.getElementById('mp_unit').value:'cm';
+  const fator=unit==='mm'?0.1:1;
+  const largPecaCm=largPeca*fator, altPecaCm=altPeca*fator;
+  const areaChapa=m.largura*m.altura, areaPeca=largPecaCm*altPecaCm;
   const fracao=areaPeca/areaChapa;
   const custo=fracao*m.custoUnit;
-  info.innerHTML=`Peça ${largPeca}×${altPeca}cm = ${(fracao*100).toFixed(1)}% da chapa (${m.largura}×${m.altura}cm) — <b style="color:var(--brand)">${fmt(custo)}</b>`;
+  info.innerHTML=`Peça ${largPeca}×${altPeca}${unit} = ${(fracao*100).toFixed(1)}% da chapa (${m.largura}×${m.altura}cm) — <b style="color:var(--brand)">${fmt(custo)}</b>`;
 }
 function setOrcCategoria(c){
   orc.categoria=c;
@@ -2406,9 +2439,11 @@ async function addMatItem(){
     if(!m.largura||!m.altura){toast('Este material não tem dimensões cadastradas. Edite-o em Materiais.');return;}
     const largPeca=num('mp_larg'), altPeca=num('mp_alt');
     if(largPeca<=0||altPeca<=0){toast('Informe a largura e a altura da peça');return;}
-    const areaChapa=m.largura*m.altura, areaPeca=largPeca*altPeca;
+    const unit=document.getElementById('mp_unit')?document.getElementById('mp_unit').value:'cm';
+    const fator=unit==='mm'?0.1:1;
+    const areaChapa=m.largura*m.altura, areaPeca=(largPeca*fator)*(altPeca*fator);
     const fracao=areaPeca/areaChapa;
-    orc.materiais.push({matId:m.id,nome:`${m.nome} (peça ${largPeca}×${altPeca}cm)`,tipo:m.tipo,custoUnit:m.custoUnit,qtd:fracao,estoque:m.estoque||0,estoqueMin:m.estoqueMin||0});
+    orc.materiais.push({matId:m.id,nome:`${m.nome} (peça ${largPeca}×${altPeca}${unit})`,tipo:m.tipo,custoUnit:m.custoUnit,qtd:fracao,estoque:m.estoque||0,estoqueMin:m.estoqueMin||0});
     document.getElementById('mp_larg').value='';
     document.getElementById('mp_alt').value='';
     document.getElementById('mp_areaInfo').textContent='';
