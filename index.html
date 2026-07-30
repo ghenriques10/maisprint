@@ -1479,6 +1479,17 @@ async function openMaterialModal(id){
         </div>
         <div class="form-row"><label>Marca <span class="help">(opcional)</span></label><input class="inp" id="m_marca" value="${esc(m.marca)}" placeholder="Ex: Suzano, Couché"></div>
       </div>
+      <label style="display:flex;align-items:center;gap:9px;cursor:pointer;margin:16px 0 6px">
+        <input type="checkbox" id="m_temDim" ${m.largura?'checked':''} onchange="toggleDimPlaca()" style="width:17px;height:17px;accent-color:var(--brand)">
+        <span style="font-size:13.5px;font-weight:500">Sei o tamanho desta chapa/placa (para cortar por área, ex: laser)</span>
+      </label>
+      <div id="m_dimBox" style="display:${m.largura?'block':'none'}">
+        <p style="font-size:12.5px;color:var(--text-3);margin:6px 0 12px">Com o tamanho da chapa, na precificação você informa só a largura x altura da peça e o sistema calcula a fatia certa do custo — sem precisar chutar.</p>
+        <div class="form-grid">
+          <div class="form-row"><label>Largura da chapa (cm)</label><input class="inp" type="number" step="0.1" id="m_largura" value="${m.largura||''}" placeholder="Ex: 30"></div>
+          <div class="form-row"><label>Altura da chapa (cm)</label><input class="inp" type="number" step="0.1" id="m_altura" value="${m.altura||''}" placeholder="Ex: 20"></div>
+        </div>
+      </div>
       <div class="modal-section-label">Como esse material é cobrado?</div>
       <div class="radio-grid" id="m_tipoGrid">
         ${Object.entries(MAT_TIPOS).map(([k,t])=>`
@@ -1531,10 +1542,15 @@ async function saveMaterial(){
   const custoUnit=valor/qtd;
   const id=val('m_id')||uid();
   const sel=document.getElementById('m_forn');
+  const temDim=document.getElementById('m_temDim').checked;
   await dbPut('materials',{id,nome,marca:val('m_marca'),fornecedorId:sel?sel.value:'',categoria:val('m_categoria'),tipo:matTipo,
     valorCompra:valor,qtdCompra:qtd,custoUnit,
+    largura:temDim?num('m_largura'):0, altura:temDim?num('m_altura'):0,
     estoque:num('m_estoqueAtual'),estoqueMin:num('m_estoqueMin')});
   closeModal();toast('Material salvo');drawMaterials();
+}
+function toggleDimPlaca(){
+  document.getElementById('m_dimBox').style.display=document.getElementById('m_temDim').checked?'block':'none';
 }
 async function delMaterial(id,nome){
   if(!confirm(`Excluir o material "${nome}"?`))return;
@@ -2303,20 +2319,60 @@ async function renderPricingForm(){
 }
 
 /* ---------- Seletor de materiais ---------- */
+let matAddMode='qtd';
 async function drawMatPicker(){
   const mats=(await dbAll('materials')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
   const box=document.getElementById('matPicker');if(!box)return;
   if(mats.length===0){box.innerHTML=`<p style="color:var(--text-3);font-size:13px">Nenhum material cadastrado. Vá em Materiais primeiro.</p>`;return;}
   window._matsCache=mats;
+  matAddMode='qtd';
   box.innerHTML=`
     <div class="form-row"><label>Buscar material</label><input class="inp" id="mp_busca" placeholder="Digite para filtrar..." oninput="filtrarMatSelect()"></div>
+    <div class="radio-grid" style="grid-template-columns:1fr 1fr;margin:6px 0 12px">
+      <div class="radio-opt sel" id="mp_modoQtd" onclick="setMatAddMode('qtd')">
+        <div class="ro-title">Por quantidade</div><div class="ro-desc">Folhas, unidades, metros...</div>
+      </div>
+      <div class="radio-opt" id="mp_modoArea" onclick="setMatAddMode('area')">
+        <div class="ro-title">Por área (retalho de chapa)</div><div class="ro-desc">Digite largura x altura da peça — ex: laser</div>
+      </div>
+    </div>
     <div class="item-add-row">
-      <div class="form-row"><label>Material</label><select class="inp" id="mp_sel"></select></div>
-      <div class="form-row" style="max-width:120px"><label>Quantidade</label><input class="inp" type="number" step="0.01" id="mp_qtd" placeholder="0"></div>
+      <div class="form-row"><label>Material</label><select class="inp" id="mp_sel" onchange="onMatSelChange()"></select></div>
+      <div class="form-row" style="max-width:120px" id="mp_qtdBox"><label>Quantidade</label><input class="inp" type="number" step="0.01" id="mp_qtd" placeholder="0"></div>
+      <div class="form-row" style="max-width:110px;display:none" id="mp_largBox"><label>Largura (cm)</label><input class="inp" type="number" step="0.1" id="mp_larg" placeholder="0" oninput="atualizaCalcArea()"></div>
+      <div class="form-row" style="max-width:110px;display:none" id="mp_altBox"><label>Altura (cm)</label><input class="inp" type="number" step="0.1" id="mp_alt" placeholder="0" oninput="atualizaCalcArea()"></div>
       <button class="btn-mini" onclick="addMatItem()">+ Adicionar</button>
-    </div>`;
+    </div>
+    <div id="mp_areaInfo" style="font-size:12px;color:var(--text-3);margin-top:4px"></div>`;
   filtrarMatSelect();
   drawMatSel();
+}
+function setMatAddMode(m){
+  matAddMode=m;
+  document.getElementById('mp_modoQtd').classList.toggle('sel',m==='qtd');
+  document.getElementById('mp_modoArea').classList.toggle('sel',m==='area');
+  document.getElementById('mp_qtdBox').style.display=m==='qtd'?'block':'none';
+  document.getElementById('mp_largBox').style.display=m==='area'?'block':'none';
+  document.getElementById('mp_altBox').style.display=m==='area'?'block':'none';
+  atualizaCalcArea();
+}
+function onMatSelChange(){ atualizaCalcArea(); }
+function atualizaCalcArea(){
+  const info=document.getElementById('mp_areaInfo');if(!info)return;
+  if(matAddMode!=='area'){info.textContent='';return;}
+  const sel=document.getElementById('mp_sel');
+  const m=(window._matsCache||[]).find(x=>x.id===sel?.value);
+  if(!m){info.textContent='';return;}
+  if(!m.largura||!m.altura){
+    info.innerHTML=`<span style="color:#E5484D">Este material não tem dimensões de chapa cadastradas. Edite-o em Materiais e informe largura/altura.</span>`;
+    return;
+  }
+  const largPeca=num('mp_larg'), altPeca=num('mp_alt');
+  if(largPeca<=0||altPeca<=0){info.textContent=`Chapa: ${m.largura}×${m.altura}cm`;return;}
+  const areaChapa=m.largura*m.altura, areaPeca=largPeca*altPeca;
+  const fracao=areaPeca/areaChapa;
+  const custo=fracao*m.custoUnit;
+  info.innerHTML=`Peça ${largPeca}×${altPeca}cm = ${(fracao*100).toFixed(1)}% da chapa (${m.largura}×${m.altura}cm) — <b style="color:var(--brand)">${fmt(custo)}</b>`;
 }
 function setOrcCategoria(c){
   orc.categoria=c;
@@ -2341,14 +2397,27 @@ function filtrarMatSelect(){
     sel.innerHTML=`<option value="">Nenhum material encontrado</option>`;return;
   }
   sel.innerHTML=filtrados.map(m=>`<option value="${m.id}">${esc(m.nome)}${m.categoria?' ['+esc(m.categoria)+']':''} — ${fmt6(m.custoUnit)}/${(MAT_TIPOS[m.tipo]||MAT_TIPOS.folha).usoLabel}</option>`).join('');
+  atualizaCalcArea();
 }
 async function addMatItem(){
   const id=document.getElementById('mp_sel').value;
-  const qtd=num('mp_qtd');
-  if(qtd<=0){toast('Informe a quantidade');return;}
   const m=await dbGet('materials',id);if(!m)return;
-  orc.materiais.push({matId:m.id,nome:m.nome,tipo:m.tipo,custoUnit:m.custoUnit,qtd,estoque:m.estoque||0,estoqueMin:m.estoqueMin||0});
-  document.getElementById('mp_qtd').value='';
+  if(matAddMode==='area'){
+    if(!m.largura||!m.altura){toast('Este material não tem dimensões cadastradas. Edite-o em Materiais.');return;}
+    const largPeca=num('mp_larg'), altPeca=num('mp_alt');
+    if(largPeca<=0||altPeca<=0){toast('Informe a largura e a altura da peça');return;}
+    const areaChapa=m.largura*m.altura, areaPeca=largPeca*altPeca;
+    const fracao=areaPeca/areaChapa;
+    orc.materiais.push({matId:m.id,nome:`${m.nome} (peça ${largPeca}×${altPeca}cm)`,tipo:m.tipo,custoUnit:m.custoUnit,qtd:fracao,estoque:m.estoque||0,estoqueMin:m.estoqueMin||0});
+    document.getElementById('mp_larg').value='';
+    document.getElementById('mp_alt').value='';
+    document.getElementById('mp_areaInfo').textContent='';
+  }else{
+    const qtd=num('mp_qtd');
+    if(qtd<=0){toast('Informe a quantidade');return;}
+    orc.materiais.push({matId:m.id,nome:m.nome,tipo:m.tipo,custoUnit:m.custoUnit,qtd,estoque:m.estoque||0,estoqueMin:m.estoqueMin||0});
+    document.getElementById('mp_qtd').value='';
+  }
   drawMatSel();refreshSummary();
 }
 function drawMatSel(){
