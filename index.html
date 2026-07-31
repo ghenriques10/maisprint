@@ -2636,10 +2636,16 @@ async function renderProductsPage(main){
         <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.materials}</svg> Produtos</h2>
         <p class="desc">Produtos que você faz com frequência. Monte a receita uma vez, reutilize sempre — o preço recalcula com os custos atuais.</p>
       </div>
-      <button class="btn-add" onclick="goTab('pricing')">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Criar produto (na precificação)
-      </button>
+      <div style="display:flex;gap:8px">
+        <button class="btn-add" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="catalogoModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          Gerar catálogo em PDF
+        </button>
+        <button class="btn-add" onclick="goTab('pricing')">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Criar produto (na precificação)
+        </button>
+      </div>
     </div>
     <div class="filter-pills" id="prodCatPills">
       <button class="pill ${prodCatFilter==='todas'?'active':''}" onclick="setProdCatFilter('todas')">Todas</button>
@@ -2675,25 +2681,200 @@ async function drawProducts(){
     linhas.push({p,preco:c.precoFinal,custo:c.custoTotal});
   }
   box.innerHTML=`<div class="tbl-wrap"><div class="tbl-scroll"><table>
-    <thead><tr><th>Produto</th><th>Categoria</th><th>Tipo</th><th class="t-right">Custo atual</th><th class="t-right">Preço atual</th><th class="t-right">Ações</th></tr></thead>
+    <thead><tr><th></th><th>Produto</th><th>Categoria</th><th class="t-right">Preço interno</th><th class="t-right">Preço de venda</th><th class="t-right">Ações</th></tr></thead>
     <tbody>${linhas.map(({p,preco,custo})=>`
       <tr>
+        <td>${p.foto?`<img src="${p.foto}" style="width:38px;height:38px;object-fit:cover;border-radius:8px">`:`<div style="width:38px;height:38px;border-radius:8px;background:var(--surface-3);display:flex;align-items:center;justify-content:center;color:var(--text-3)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`}</td>
         <td><div class="t-main">${esc(p.nome)}</div>${p.obs?`<div class="t-sub">${esc(p.obs)}</div>`:''}</td>
         <td>${p.receita.categoria?`<span class="badge">${esc(p.receita.categoria)}</span>`:'<span class="t-sub">—</span>'}</td>
-        <td><span class="t-sub">${p.receita.modo==='terceirizado'?'Terceirizado':(p.receita.modo==='avancado'?'Avançado':'Rápido')}</span></td>
-        <td class="t-right">${fmt(custo)}</td>
-        <td class="t-right"><b style="color:var(--brand)">${fmt(preco)}</b></td>
+        <td class="t-right"><span class="t-sub" title="Custo: ${fmt(custo)}">${fmt(preco)}</span></td>
+        <td class="t-right">${p.precoCatalogo?`<b style="color:var(--brand)">${fmt(p.precoCatalogo)}</b>`:'<span class="t-sub">— não definido</span>'}</td>
         <td><div class="t-actions">
-          <button class="btn-mini" onclick="usarProduto('${p.id}')">Usar no orçamento</button>
+          <button class="btn-mini" onclick="usarProduto('${p.id}')">Usar</button>
+          <button class="act-btn" onclick="catalogoItemModal('${p.id}')" title="Foto e preço de venda"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button>
           <button class="act-btn danger" onclick="delProduto('${p.id}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
         </div></td>
       </tr>`).join('')}</tbody></table></div></div>
-    <p class="help" style="margin-top:12px">Os preços acima são recalculados automaticamente com os custos de materiais de hoje. Se o papel subir, o preço do produto sobe junto.</p>`;
+    <p class="help" style="margin-top:12px">O "Preço interno" é recalculado sozinho com os custos de hoje — só você vê. O "Preço de venda" é o que você define para o cliente, no botão de foto/preço.</p>`;
 }
 async function delProduto(id){
   if(!confirm('Excluir este produto? Os orçamentos já feitos com ele não são afetados.'))return;
   await dbDel('products',id);
   toast('Produto excluído');drawProducts();
+}
+
+/* ============================================================
+   CATÁLOGO DE PRODUTOS (foto + preço de venda + PDF)
+   ============================================================ */
+let catalogoFotoTmp=null;
+async function catalogoItemModal(id){
+  const p=await dbGet('products',id);if(!p)return;
+  catalogoFotoTmp=null;
+  openModal(`
+    <div class="modal-head">
+      <h3>Foto e preço de venda</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--text-2);margin-bottom:16px">Isso é o que aparece no catálogo para o cliente. Seu custo e preço interno continuam só seus.</p>
+      <div style="display:flex;align-items:center;gap:18px;margin-bottom:16px">
+        <div id="cat_fotoPreview" style="width:100px;height:100px;border-radius:var(--radius-sm);border:1.5px dashed var(--border-strong);display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--surface-2);flex-shrink:0">
+          ${p.foto?`<img src="${p.foto}" style="width:100%;height:100%;object-fit:cover">`:`<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`}
+        </div>
+        <div>
+          <input type="file" id="cat_fotoFile" accept="image/*" style="display:none" onchange="handleCatalogoFoto(event)">
+          <button class="btn-save" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="document.getElementById('cat_fotoFile').click()">Escolher foto</button>
+          <p class="help" style="margin-top:8px">Opcional. Fica mais bonito no catálogo, mas não é obrigatório.</p>
+        </div>
+      </div>
+      <input type="hidden" id="cat_id" value="${p.id}">
+      <div class="form-row"><label>Preço de venda (o que o cliente vê)</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="cat_preco" value="${p.precoCatalogo||''}" placeholder="0,00"></div></div>
+      <div class="form-row" style="margin-top:12px"><label>Descrição para o cliente <span class="help">(opcional, diferente da observação interna)</span></label><input class="inp" id="cat_desc" value="${esc(p.descCatalogo||'')}" placeholder="Ex: Bloquinho artesanal para anotações do dia a dia"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="salvarCatalogoItem()">Salvar</button>
+    </div>`);
+}
+function handleCatalogoFoto(ev){
+  const file=ev.target.files[0];if(!file)return;
+  if(file.size>5*1024*1024){toast('Imagem muito grande (máx 5MB)');return;}
+  resizeImage(file,500,500,out=>{
+    catalogoFotoTmp=out;
+    document.getElementById('cat_fotoPreview').innerHTML=`<img src="${catalogoFotoTmp}" style="width:100%;height:100%;object-fit:cover">`;
+    toast('Foto carregada — clique em Salvar');
+  });
+}
+async function salvarCatalogoItem(){
+  const id=val('cat_id');
+  const p=await dbGet('products',id);if(!p)return;
+  p.precoCatalogo=num('cat_preco');
+  p.descCatalogo=val('cat_desc');
+  if(catalogoFotoTmp!==null)p.foto=catalogoFotoTmp;
+  try{
+    await dbPut('products',p);
+    closeModal();toast('Salvo!');drawProducts();
+  }catch(err){
+    toast('Erro ao salvar — tente uma foto menor');
+  }
+}
+
+// ----- Gerar catálogo em PDF -----
+async function catalogoModal(){
+  let prods=(await dbAll('products')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  if(prods.length===0){toast('Cadastre produtos primeiro');return;}
+  openModal(`
+    <div class="modal-head">
+      <h3>Gerar catálogo em PDF</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--text-2);margin-bottom:14px">Marque os produtos que entram no catálogo. Só aparecem foto, nome e preço de venda — nada de custo interno.</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="btn-mini" onclick="marcarTodosCatalogo(true)">Marcar todos</button>
+        <button class="btn-mini" onclick="marcarTodosCatalogo(false)">Desmarcar todos</button>
+      </div>
+      <div id="catalogoLista" style="max-height:360px;overflow-y:auto">
+        ${prods.map(p=>`
+          <label style="display:flex;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px solid var(--border);cursor:pointer">
+            <input type="checkbox" class="catalogo-check" value="${p.id}" ${p.precoCatalogo?'checked':''} style="width:17px;height:17px;accent-color:var(--brand)">
+            ${p.foto?`<img src="${p.foto}" style="width:34px;height:34px;object-fit:cover;border-radius:7px">`:`<div style="width:34px;height:34px;border-radius:7px;background:var(--surface-3)"></div>`}
+            <div style="flex:1">
+              <div style="font-size:13.5px;font-weight:500">${esc(p.nome)}</div>
+              ${!p.precoCatalogo?`<div style="font-size:11.5px;color:#E5484D">Sem preço de venda definido</div>`:''}
+            </div>
+            <div style="font-weight:600;color:var(--brand)">${p.precoCatalogo?fmt(p.precoCatalogo):'—'}</div>
+          </label>`).join('')}
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="gerarCatalogoPDF()">Gerar PDF</button>
+    </div>`);
+}
+function marcarTodosCatalogo(v){
+  document.querySelectorAll('.catalogo-check').forEach(c=>c.checked=v);
+}
+async function gerarCatalogoPDF(){
+  const ids=Array.from(document.querySelectorAll('.catalogo-check:checked')).map(c=>c.value);
+  if(ids.length===0){toast('Marque ao menos um produto');return;}
+  const selecionados=[];
+  for(const id of ids){
+    const p=await dbGet('products',id);
+    if(p&&p.precoCatalogo)selecionados.push(p);
+  }
+  if(selecionados.length===0){toast('Os produtos marcados não têm preço de venda definido');return;}
+  if(!window.jspdf){toast('Conecte-se à internet para gerar o PDF');return;}
+  const e=CONFIG.empresa;
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF({unit:'pt',format:'a4'});
+  const W=595.28, H=841.89;
+  const ROXO=[102,0,255], ROXO_ESC=[75,0,181], PRETO=[23,23,28], CINZA_TXT=[138,138,149];
+  function gradH(x,y,w,h,c1,c2,steps){
+    steps=steps||60;
+    for(let i=0;i<steps;i++){const t=i/steps;
+      doc.setFillColor(Math.round(c1[0]+(c2[0]-c1[0])*t),Math.round(c1[1]+(c2[1]-c1[1])*t),Math.round(c1[2]+(c2[2]-c1[2])*t));
+      doc.rect(x+i*(w/steps),y,w/steps+0.6,h,'F');}
+  }
+  function img(dataurl,x,y,maxw,maxh){
+    if(!dataurl)return false;
+    try{const f=dataurl.indexOf('image/png')>=0?'PNG':'JPEG';const p=doc.getImageProperties(dataurl);
+      const ratio=p.width/p.height;let w=maxw,h=maxw/ratio;if(h>maxh){h=maxh;w=maxh*ratio;}
+      doc.addImage(dataurl,f,x+(maxw-w)/2,y+(maxh-h)/2,w,h);return true;}catch(err){return false;}
+  }
+  function fmtMoeda(v){return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+  // Cabeçalho
+  const TOPO=90;
+  gradH(0,0,W,TOPO,ROXO,PRETO);
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(26);
+  doc.text('Catálogo',40,55);
+  doc.setFontSize(11);doc.setFont('helvetica','normal');
+  doc.text((e.nome||'Mais Print'),40,72);
+
+  const COLS=2, CARD_W=250, CARD_H=210, MARGIN=40, GAP=15;
+  let x=MARGIN, y=TOPO+30, col=0;
+  selecionados.forEach((p,i)=>{
+    if(y+CARD_H>H-30){ doc.addPage(); y=30; }
+    // cartão
+    doc.setFillColor(250,250,252);doc.roundedRect(x,y,CARD_W,CARD_H,8,8,'F');
+    doc.setDrawColor(230,230,235);doc.setLineWidth(0.7);doc.roundedRect(x,y,CARD_W,CARD_H,8,8,'S');
+    // foto (ou placeholder)
+    const imgH=120;
+    doc.setFillColor(240,240,244);doc.rect(x,y,CARD_W,imgH,'F');
+    if(!p.foto||!img(p.foto,x,y,CARD_W,imgH)){
+      doc.setTextColor(190,190,195);doc.setFont('helvetica','normal');doc.setFontSize(9);
+      doc.text('sem foto',x+CARD_W/2,y+imgH/2,{align:'center'});
+    }
+    // nome
+    doc.setTextColor(...PRETO);doc.setFont('helvetica','bold');doc.setFontSize(11.5);
+    const nomeLinhas=doc.splitTextToSize(p.nome,CARD_W-20);
+    doc.text(nomeLinhas.slice(0,2),x+12,y+imgH+20);
+    // descrição
+    if(p.descCatalogo){
+      doc.setTextColor(...CINZA_TXT);doc.setFont('helvetica','normal');doc.setFontSize(8.5);
+      const descLinhas=doc.splitTextToSize(p.descCatalogo,CARD_W-20);
+      doc.text(descLinhas.slice(0,2),x+12,y+imgH+20+14*nomeLinhas.slice(0,2).length);
+    }
+    // preço
+    doc.setTextColor(...ROXO);doc.setFont('helvetica','bold');doc.setFontSize(14);
+    doc.text(fmtMoeda(p.precoCatalogo),x+12,y+CARD_H-14);
+
+    col++;
+    if(col>=COLS){col=0;x=MARGIN;y+=CARD_H+GAP;}
+    else{x+=CARD_W+GAP;}
+  });
+
+  // Rodapé com contato
+  const parts=[]; if(e.whatsapp)parts.push(e.whatsapp); if(e.instagram)parts.push('@'+e.instagram.replace(/^@/,''));
+  if(parts.length){
+    doc.setTextColor(...CINZA_TXT);doc.setFont('helvetica','normal');doc.setFontSize(9);
+    doc.text(parts.join('  •  '),W/2,H-20,{align:'center'});
+  }
+
+  doc.save(`Catalogo-${(e.nome||'MaisPrint').replace(/\s+/g,'')}.pdf`);
+  closeModal();
+  toast('Catálogo gerado!');
 }
 // Salvar a precificação atual como produto
 function salvarComoProdutoModal(){
