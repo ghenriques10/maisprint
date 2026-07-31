@@ -1014,6 +1014,18 @@ function renderEmpresa(){
           <p class="help" style="margin-top:8px;max-width:240px">PNG ou JPG. Aparece em destaque no topo dos orçamentos em PDF.</p>
         </div>
       </div>
+      <div class="modal-section-label">Logo monocromática <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-3)">(opcional, para fundos escuros/coloridos)</span></div>
+      <div style="display:flex;align-items:center;gap:18px;margin-bottom:8px;flex-wrap:wrap">
+        <div id="logoMonoPreview" style="width:120px;height:120px;border-radius:var(--radius-sm);border:1.5px dashed var(--border-strong);display:flex;align-items:center;justify-content:center;overflow:hidden;background:linear-gradient(135deg,#6600FF,#17171C);flex-shrink:0">
+          ${e.logoMono?`<img src="${e.logoMono}" style="max-width:80%;max-height:80%;object-fit:contain">`:`<span style="color:rgba(255,255,255,.5);font-size:11px;text-align:center;padding:0 10px">sem logo mono</span>`}
+        </div>
+        <div>
+          <input type="file" id="logoMonoFile" accept="image/*" style="display:none" onchange="handleLogoMono(event)">
+          <button class="btn-save" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="document.getElementById('logoMonoFile').click()">Escolher imagem</button>
+          ${e.logoMono?`<button class="btn-ghost" style="margin-left:8px" onclick="removeLogoMono()">Remover</button>`:''}
+          <p class="help" style="margin-top:8px;max-width:280px">Uma versão de cor única (branca ou preta), com fundo transparente, pra usar sobre fundos escuros ou coloridos — como no link do catálogo. Se não tiver, o sistema usa a logo normal.</p>
+        </div>
+      </div>
       <div class="section-divider"></div>
       <div class="form-grid">
         <div class="form-row"><label>Nome da empresa</label><input class="inp" id="cfg_nome" value="${e.nome||''}"></div>
@@ -1086,6 +1098,24 @@ function removeLogo(){
   document.querySelector('.subtab:nth-child(3)')?.classList.add('active');
   toast('Logo removido');
 }
+let logoMonoTmp=null;
+function handleLogoMono(ev){
+  const file=ev.target.files[0];if(!file)return;
+  if(file.size>5*1024*1024){toast('Imagem muito grande (máx 5MB)');return;}
+  resizeImage(file,500,500,out=>{
+    logoMonoTmp=out;
+    document.getElementById('logoMonoPreview').innerHTML=`<img src="${logoMonoTmp}" style="max-width:80%;max-height:80%;object-fit:contain">`;
+    toast('Logo monocromática carregada — clique em Salvar dados');
+  });
+}
+function removeLogoMono(){
+  logoMonoTmp='';
+  CONFIG.empresa.logoMono='';
+  dbPut('config',CONFIG);
+  goSub('empresa');
+  document.querySelector('.subtab:nth-child(3)')?.classList.add('active');
+  toast('Logo monocromática removida');
+}
 
 /* ---------- Cálculos e ações de Configurações ---------- */
 function fmt(v){return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
@@ -1153,9 +1183,10 @@ async function saveEmpresa(){
   CONFIG.empresa.endereco=document.getElementById('cfg_end').value;
   CONFIG.empresa.instagram=document.getElementById('cfg_insta').value;
   if(logoTmp!==null)CONFIG.empresa.logo=logoTmp;
+  if(logoMonoTmp!==null)CONFIG.empresa.logoMono=logoMonoTmp;
   try{
     await dbPut('config',CONFIG);
-    logoTmp=null;
+    logoTmp=null;logoMonoTmp=null;
     toast('Dados da empresa salvos');
   }catch(err){
     toast('Erro ao salvar na nuvem — tente uma imagem menor');
@@ -2849,7 +2880,7 @@ async function criarLinkComDuracao(horas){
   const expiraEm=Date.now()+horas*3600000;
   const e=CONFIG.empresa||{};
   try{
-    await dbPut('catalogos',{id:token,itens,empresa:{nome:e.nome,logo:e.logo,whatsapp:e.whatsapp,instagram:e.instagram},expiraEm,criadoEm:Date.now()});
+    await dbPut('catalogos',{id:token,itens,empresa:{nome:e.nome,logo:e.logo,logoMono:e.logoMono,whatsapp:e.whatsapp,instagram:e.instagram},expiraEm,criadoEm:Date.now()});
   }catch(err){
     toast('Erro ao gerar o link — tente com menos fotos ou fotos menores');return;
   }
@@ -4705,18 +4736,20 @@ async function renderCatalogoPublico(token){
       dbDel('catalogos',token).catch(()=>{}); // limpeza best-effort
       return;
     }
+    window._catDados=dados;
+    window._catCarrinho={}; // {indice: quantidade}
     const e=dados.empresa||{};
     const restante=dados.expiraEm-Date.now();
     const horasRestantes=Math.max(1,Math.round(restante/3600000));
     box.innerHTML=`
-      <div style="min-height:100vh;background:#f6f7f9;font-family:'Inter',-apple-system,sans-serif;padding-bottom:40px">
+      <div style="min-height:100vh;background:#f6f7f9;font-family:'Inter',-apple-system,sans-serif;padding-bottom:100px">
         <div style="background:linear-gradient(135deg,#6600FF,#17171C);padding:34px 20px 28px;text-align:center;color:#fff">
-          ${e.logo?`<img src="${e.logo}" style="max-width:140px;max-height:70px;object-fit:contain;margin-bottom:12px">`:`<div style="font-size:22px;font-weight:800;margin-bottom:6px">${esc(e.nome||'Catálogo')}</div>`}
+          ${(e.logoMono||e.logo)?`<img src="${e.logoMono||e.logo}" style="max-width:140px;max-height:70px;object-fit:contain;margin-bottom:12px">`:`<div style="font-size:22px;font-weight:800;margin-bottom:6px">${esc(e.nome||'Catálogo')}</div>`}
           <div style="font-size:26px;font-weight:800;margin-top:8px">Nosso Catálogo</div>
           <div style="font-size:12px;opacity:.75;margin-top:6px">Link válido por mais ${horasRestantes}h</div>
         </div>
         <div style="max-width:900px;margin:24px auto 0;padding:0 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px">
-          ${(dados.itens||[]).map(it=>`
+          ${(dados.itens||[]).map((it,i)=>`
             <div style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(20,25,35,.06)">
               <div style="width:100%;aspect-ratio:1/1;background:#f0f0f4;display:flex;align-items:center;justify-content:center;overflow:hidden">
                 ${it.foto?`<img src="${it.foto}" style="width:100%;height:100%;object-fit:cover">`:`<span style="color:#c0c0c8;font-size:12px">sem foto</span>`}
@@ -4724,7 +4757,12 @@ async function renderCatalogoPublico(token){
               <div style="padding:13px 14px">
                 <div style="font-weight:700;font-size:14px;color:#17171c;margin-bottom:4px">${esc(it.nome)}</div>
                 ${it.descCatalogo?`<div style="font-size:12px;color:#8a93a1;margin-bottom:8px;line-height:1.35">${esc(it.descCatalogo)}</div>`:''}
-                <div style="font-weight:800;font-size:16px;color:#6600FF">${fmt(it.precoCatalogo)}</div>
+                <div style="font-weight:800;font-size:16px;color:#6600FF;margin-bottom:10px">${fmt(it.precoCatalogo)}</div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <button onclick="catAtualizaQtd(${i},-1)" style="width:30px;height:30px;border-radius:8px;border:1px solid #e5e5ea;background:#fafafa;font-size:16px;font-weight:700;color:#6600FF">−</button>
+                  <span id="catQtd_${i}" style="min-width:20px;text-align:center;font-weight:700;font-size:14px">0</span>
+                  <button onclick="catAtualizaQtd(${i},1)" style="width:30px;height:30px;border-radius:8px;border:1px solid #e5e5ea;background:#fafafa;font-size:16px;font-weight:700;color:#6600FF">+</button>
+                </div>
               </div>
             </div>`).join('')}
         </div>
@@ -4732,10 +4770,114 @@ async function renderCatalogoPublico(token){
           ${e.whatsapp?`<div>WhatsApp: ${esc(e.whatsapp)}</div>`:''}
           ${e.instagram?`<div style="margin-top:2px">@${esc(e.instagram.replace(/^@/,''))}</div>`:''}
         </div>
+      </div>
+      <div id="catCarrinhoBar" style="display:none;position:fixed;left:0;right:0;bottom:0;background:#17171c;color:#fff;padding:14px 20px;display:none;align-items:center;justify-content:space-between;box-shadow:0 -4px 20px rgba(0,0,0,.15);z-index:50" onclick="catAbrirCarrinho()">
+        <div style="font-size:13.5px"><b id="catBarCount">0</b> item(ns)</div>
+        <div style="font-weight:800;font-size:15px" id="catBarTotal">R$ 0,00</div>
+        <div style="background:#6600FF;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px">Ver pedido</div>
+      </div>
+      <div id="catCarrinhoOverlay" style="display:none;position:fixed;inset:0;background:rgba(20,20,30,.5);z-index:60;align-items:flex-end;justify-content:center" onclick="if(event.target===this)catFecharCarrinho()">
+        <div style="background:#fff;width:100%;max-width:480px;border-radius:20px 20px 0 0;padding:22px 20px;max-height:85vh;overflow-y:auto">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h3 style="font-size:17px;color:#17171c">Seu pedido</h3>
+            <button onclick="catFecharCarrinho()" style="width:32px;height:32px;border-radius:8px;background:#f2f2f6;display:flex;align-items:center;justify-content:center">✕</button>
+          </div>
+          <div id="catCarrinhoItens"></div>
+          <div style="margin-top:16px">
+            <label style="font-size:12.5px;font-weight:600;color:#5a6472;display:block;margin-bottom:6px">Seu nome</label>
+            <input id="catNomeCliente" placeholder="Como você se chama?" style="width:100%;padding:11px 13px;border-radius:10px;border:1px solid #e5e5ea;font-size:14px;box-sizing:border-box">
+          </div>
+          <div style="margin-top:14px">
+            <label style="font-size:12.5px;font-weight:600;color:#5a6472;display:block;margin-bottom:6px">Forma de pagamento</label>
+            <select id="catPagamento" style="width:100%;padding:11px 13px;border-radius:10px;border:1px solid #e5e5ea;font-size:14px;box-sizing:border-box">
+              <option>Pix</option>
+              <option>Dinheiro</option>
+              <option>Cartão</option>
+            </select>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid #eee">
+            <span style="font-size:14px;color:#5a6472">Total</span>
+            <span style="font-size:20px;font-weight:800;color:#6600FF" id="catModalTotal">R$ 0,00</span>
+          </div>
+          <button onclick="catFinalizarPedido()" style="width:100%;margin-top:16px;padding:14px;border-radius:12px;background:#25D366;color:#fff;font-weight:700;font-size:14.5px;display:flex;align-items:center;justify-content:center;gap:8px">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.48 1.32 5L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21 5.46 0 9.91-4.45 9.91-9.91C22 6.45 17.5 2 12.04 2z"/></svg>
+            Finalizar pelo WhatsApp
+          </button>
+        </div>
       </div>`;
   }catch(err){
     renderCatalogoIndisponivel('Não consegui carregar o catálogo. Verifique sua internet e tente de novo.');
   }
+}
+function catAtualizaQtd(i,delta){
+  const atual=window._catCarrinho[i]||0;
+  const nova=Math.max(0,atual+delta);
+  if(nova===0)delete window._catCarrinho[i]; else window._catCarrinho[i]=nova;
+  const span=document.getElementById('catQtd_'+i);if(span)span.textContent=nova;
+  catAtualizaBarra();
+}
+function catCarrinhoResumo(){
+  const dados=window._catDados;
+  let count=0,total=0;
+  const itens=[];
+  Object.keys(window._catCarrinho).forEach(i=>{
+    const qtd=window._catCarrinho[i];
+    const it=dados.itens[i];
+    if(!it||qtd<=0)return;
+    count+=qtd;
+    total+=qtd*it.precoCatalogo;
+    itens.push({...it,qtd,subtotal:qtd*it.precoCatalogo});
+  });
+  return {count,total,itens};
+}
+function catAtualizaBarra(){
+  const {count,total}=catCarrinhoResumo();
+  const bar=document.getElementById('catCarrinhoBar');
+  if(!bar)return;
+  if(count>0){
+    bar.style.display='flex';
+    document.getElementById('catBarCount').textContent=count;
+    document.getElementById('catBarTotal').textContent=fmt(total);
+  }else{
+    bar.style.display='none';
+  }
+}
+function catAbrirCarrinho(){
+  const {itens,total}=catCarrinhoResumo();
+  if(itens.length===0){return;}
+  const box=document.getElementById('catCarrinhoItens');
+  box.innerHTML=itens.map(it=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f2f2f6">
+      <div style="flex:1">
+        <div style="font-size:13.5px;font-weight:600;color:#17171c">${esc(it.nome)}</div>
+        <div style="font-size:12px;color:#8a93a1">${it.qtd} × ${fmt(it.precoCatalogo)}</div>
+      </div>
+      <div style="font-weight:700;font-size:13.5px;color:#17171c">${fmt(it.subtotal)}</div>
+    </div>`).join('');
+  document.getElementById('catModalTotal').textContent=fmt(total);
+  document.getElementById('catCarrinhoOverlay').style.display='flex';
+}
+function catFecharCarrinho(){
+  document.getElementById('catCarrinhoOverlay').style.display='none';
+}
+function catFinalizarPedido(){
+  const {itens,total}=catCarrinhoResumo();
+  if(itens.length===0){return;}
+  const nome=document.getElementById('catNomeCliente').value.trim();
+  const pagamento=document.getElementById('catPagamento').value;
+  const e=(window._catDados.empresa)||{};
+  let msg=`Olá! Vim pelo catálogo e quero fazer um pedido:\n\n`;
+  itens.forEach(it=>{ msg+=`• ${it.qtd}x ${it.nome} — ${fmt(it.subtotal)}\n`; });
+  msg+=`\n*Total: ${fmt(total)}*\n`;
+  msg+=`Forma de pagamento: ${pagamento}\n`;
+  if(nome)msg+=`Meu nome: ${nome}\n`;
+  // limpa o telefone e monta o link do WhatsApp
+  let tel=(e.whatsapp||'').replace(/\D/g,'');
+  if(tel.length>=10&&tel.length<=11)tel='55'+tel; // adiciona DDI Brasil se faltar
+  const url = tel
+    ? `https://wa.me/${tel}?text=${encodeURIComponent(msg)}`
+    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(url,'_blank');
 }
 function renderCatalogoIndisponivel(msg){
   const box=document.getElementById('catalogoPublico');
