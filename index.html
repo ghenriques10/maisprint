@@ -563,6 +563,9 @@ tbody tr:hover{background:var(--surface-2)}
 <body data-theme="light">
 
 <!-- ===================== LOGIN ===================== -->
+<!-- Visualização pública do catálogo (link temporário, sem login) -->
+<div id="catalogoPublico" style="display:none"></div>
+
 <div id="loginScreen">
   <div class="login-card">
     <div class="login-logo">
@@ -1041,6 +1044,25 @@ function resizeImage(file,maxW,maxH,cb){
       // PNG preserva transparência (importante para logo)
       const isPng=file.type.indexOf('png')>=0;
       const out=isPng?canvas.toDataURL('image/png'):canvas.toDataURL('image/jpeg',0.85);
+      cb(out);
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+// Recorta pelo centro em quadrado perfeito (1:1) — usado nas fotos do catálogo
+function resizeImageSquare(file,size,cb){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const side=Math.min(img.width,img.height);
+      const sx=(img.width-side)/2, sy=(img.height-side)/2;
+      const canvas=document.createElement('canvas');
+      canvas.width=size;canvas.height=size;
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(img,sx,sy,side,side,0,0,size,size);
+      const out=canvas.toDataURL('image/jpeg',0.85);
       cb(out);
     };
     img.src=e.target.result;
@@ -2739,10 +2761,10 @@ async function catalogoItemModal(id){
 function handleCatalogoFoto(ev){
   const file=ev.target.files[0];if(!file)return;
   if(file.size>5*1024*1024){toast('Imagem muito grande (máx 5MB)');return;}
-  resizeImage(file,500,500,out=>{
+  resizeImageSquare(file,500,out=>{
     catalogoFotoTmp=out;
     document.getElementById('cat_fotoPreview').innerHTML=`<img src="${catalogoFotoTmp}" style="width:100%;height:100%;object-fit:cover">`;
-    toast('Foto carregada — clique em Salvar');
+    toast('Foto carregada (recortada em quadrado) — clique em Salvar');
   });
 }
 async function salvarCatalogoItem(){
@@ -2787,13 +2809,73 @@ async function catalogoModal(){
           </label>`).join('')}
       </div>
     </div>
-    <div class="modal-foot">
+    <div class="modal-foot" style="flex-wrap:wrap">
       <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong)" onclick="gerarLinkTemporario()">Gerar link temporário</button>
       <button class="btn-save" onclick="gerarCatalogoPDF()">Gerar PDF</button>
     </div>`);
 }
 function marcarTodosCatalogo(v){
   document.querySelectorAll('.catalogo-check').forEach(c=>c.checked=v);
+}
+async function gerarLinkTemporario(){
+  const ids=Array.from(document.querySelectorAll('.catalogo-check:checked')).map(c=>c.value);
+  if(ids.length===0){toast('Marque ao menos um produto');return;}
+  window._catalogoIdsSelecionados=ids;
+  openModal(`
+    <div class="modal-head">
+      <h3>Por quanto tempo o link fica no ar?</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--text-2);margin-bottom:16px">Depois desse prazo, o link para de funcionar sozinho.</p>
+      <div class="radio-grid" style="grid-template-columns:1fr 1fr">
+        <div class="radio-opt" onclick="criarLinkComDuracao(6)"><div class="ro-title">6 horas</div></div>
+        <div class="radio-opt" onclick="criarLinkComDuracao(12)"><div class="ro-title">12 horas</div></div>
+        <div class="radio-opt" onclick="criarLinkComDuracao(24)"><div class="ro-title">24 horas</div></div>
+        <div class="radio-opt" onclick="criarLinkComDuracao(48)"><div class="ro-title">48 horas</div></div>
+      </div>
+    </div>`);
+}
+async function criarLinkComDuracao(horas){
+  const ids=window._catalogoIdsSelecionados||[];
+  const itens=[];
+  for(const id of ids){
+    const p=await dbGet('products',id);
+    if(p&&p.precoCatalogo)itens.push({nome:p.nome,foto:p.foto||'',precoCatalogo:p.precoCatalogo,descCatalogo:p.descCatalogo||''});
+  }
+  if(itens.length===0){toast('Os produtos marcados não têm preço de venda definido');return;}
+  const token=uid()+uid();
+  const expiraEm=Date.now()+horas*3600000;
+  const e=CONFIG.empresa||{};
+  try{
+    await dbPut('catalogos',{id:token,itens,empresa:{nome:e.nome,logo:e.logo,whatsapp:e.whatsapp,instagram:e.instagram},expiraEm,criadoEm:Date.now()});
+  }catch(err){
+    toast('Erro ao gerar o link — tente com menos fotos ou fotos menores');return;
+  }
+  const url=location.origin+location.pathname+'?catalogo='+token;
+  openModal(`
+    <div class="modal-head">
+      <h3>Link gerado!</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--text-2);margin-bottom:14px">Válido por ${horas} horas. Depois disso, quem abrir vai ver que expirou.</p>
+      <div style="display:flex;gap:8px">
+        <input class="inp" id="link_url" value="${url}" readonly style="font-size:12.5px">
+        <button class="btn-mini" onclick="copiarLinkCatalogo()">Copiar</button>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-save" style="width:100%;justify-content:center" onclick="closeModal()">Pronto</button>
+    </div>`);
+}
+function copiarLinkCatalogo(){
+  const inp=document.getElementById('link_url');
+  inp.select();
+  navigator.clipboard?.writeText(inp.value).then(()=>toast('Link copiado!')).catch(()=>{
+    document.execCommand('copy');toast('Link copiado!');
+  });
 }
 async function gerarCatalogoPDF(){
   const ids=Array.from(document.querySelectorAll('.catalogo-check:checked')).map(c=>c.value);
@@ -2822,6 +2904,22 @@ async function gerarCatalogoPDF(){
       const ratio=p.width/p.height;let w=maxw,h=maxw/ratio;if(h>maxh){h=maxh;w=maxh*ratio;}
       doc.addImage(dataurl,f,x+(maxw-w)/2,y+(maxh-h)/2,w,h);return true;}catch(err){return false;}
   }
+  // Recorta em "cover" (preenche o quadrado inteiro, sem sobras) — garante 1:1 mesmo em fotos antigas não-quadradas
+  function imgCover(dataurl,x,y,size){
+    if(!dataurl)return false;
+    try{
+      const f=dataurl.indexOf('image/png')>=0?'PNG':'JPEG';
+      const p=doc.getImageProperties(dataurl);
+      const srcRatio=p.width/p.height;
+      let w=size,h=size;
+      if(srcRatio>1){ w=size*srcRatio; } else { h=size/srcRatio; }
+      doc.saveGraphicsState();
+      doc.rect(x,y,size,size);doc.clip();doc.discardPath();
+      doc.addImage(dataurl,f,x-(w-size)/2,y-(h-size)/2,w,h);
+      doc.restoreGraphicsState();
+      return true;
+    }catch(err){return false;}
+  }
   function fmtMoeda(v){return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 
   // Cabeçalho
@@ -2832,17 +2930,17 @@ async function gerarCatalogoPDF(){
   doc.setFontSize(11);doc.setFont('helvetica','normal');
   doc.text((e.nome||'Mais Print'),40,72);
 
-  const COLS=2, CARD_W=250, CARD_H=210, MARGIN=40, GAP=15;
+  const COLS=2, CARD_W=250, IMG_SIZE=CARD_W, CARD_H=IMG_SIZE+130, MARGIN=40, GAP=15;
   let x=MARGIN, y=TOPO+30, col=0;
   selecionados.forEach((p,i)=>{
     if(y+CARD_H>H-30){ doc.addPage(); y=30; }
     // cartão
     doc.setFillColor(250,250,252);doc.roundedRect(x,y,CARD_W,CARD_H,8,8,'F');
     doc.setDrawColor(230,230,235);doc.setLineWidth(0.7);doc.roundedRect(x,y,CARD_W,CARD_H,8,8,'S');
-    // foto (ou placeholder)
-    const imgH=120;
+    // foto sempre em quadrado 1:1 (a imagem já vem recortada quadrada no upload)
+    const imgH=IMG_SIZE;
     doc.setFillColor(240,240,244);doc.rect(x,y,CARD_W,imgH,'F');
-    if(!p.foto||!img(p.foto,x,y,CARD_W,imgH)){
+    if(!p.foto||!imgCover(p.foto,x,y,imgH)){
       doc.setTextColor(190,190,195);doc.setFont('helvetica','normal');doc.setFontSize(9);
       doc.text('sem foto',x+CARD_W/2,y+imgH/2,{align:'center'});
     }
@@ -4586,7 +4684,76 @@ async function gerarPDF(){
 /* ============================================================
    INICIALIZAÇÃO
    ============================================================ */
+/* ============================================================
+   VISUALIZAÇÃO PÚBLICA DO CATÁLOGO (link temporário)
+   Acessível via ?catalogo=TOKEN, sem precisar de login.
+   ============================================================ */
+async function renderCatalogoPublico(token){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='none';
+  const box=document.getElementById('catalogoPublico');
+  box.style.display='block';
+  box.innerHTML=`<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f6f7f9;font-family:'Inter',-apple-system,sans-serif">
+    <div style="text-align:center;color:#8a93a1">Carregando catálogo...</div>
+  </div>`;
+  try{
+    await openDB();
+    const dados=await dbGet('catalogos',token);
+    if(!dados){ renderCatalogoIndisponivel('Este link não existe ou já foi removido.'); return; }
+    if(Date.now()>dados.expiraEm){
+      renderCatalogoIndisponivel('Este catálogo expirou. Peça um link novo para quem te enviou.');
+      dbDel('catalogos',token).catch(()=>{}); // limpeza best-effort
+      return;
+    }
+    const e=dados.empresa||{};
+    const restante=dados.expiraEm-Date.now();
+    const horasRestantes=Math.max(1,Math.round(restante/3600000));
+    box.innerHTML=`
+      <div style="min-height:100vh;background:#f6f7f9;font-family:'Inter',-apple-system,sans-serif;padding-bottom:40px">
+        <div style="background:linear-gradient(135deg,#6600FF,#17171C);padding:34px 20px 28px;text-align:center;color:#fff">
+          ${e.logo?`<img src="${e.logo}" style="max-width:140px;max-height:70px;object-fit:contain;margin-bottom:12px">`:`<div style="font-size:22px;font-weight:800;margin-bottom:6px">${esc(e.nome||'Catálogo')}</div>`}
+          <div style="font-size:26px;font-weight:800;margin-top:8px">Nosso Catálogo</div>
+          <div style="font-size:12px;opacity:.75;margin-top:6px">Link válido por mais ${horasRestantes}h</div>
+        </div>
+        <div style="max-width:900px;margin:24px auto 0;padding:0 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px">
+          ${(dados.itens||[]).map(it=>`
+            <div style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(20,25,35,.06)">
+              <div style="width:100%;aspect-ratio:1/1;background:#f0f0f4;display:flex;align-items:center;justify-content:center;overflow:hidden">
+                ${it.foto?`<img src="${it.foto}" style="width:100%;height:100%;object-fit:cover">`:`<span style="color:#c0c0c8;font-size:12px">sem foto</span>`}
+              </div>
+              <div style="padding:13px 14px">
+                <div style="font-weight:700;font-size:14px;color:#17171c;margin-bottom:4px">${esc(it.nome)}</div>
+                ${it.descCatalogo?`<div style="font-size:12px;color:#8a93a1;margin-bottom:8px;line-height:1.35">${esc(it.descCatalogo)}</div>`:''}
+                <div style="font-weight:800;font-size:16px;color:#6600FF">${fmt(it.precoCatalogo)}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+        <div style="text-align:center;margin-top:32px;color:#8a93a1;font-size:12.5px">
+          ${e.whatsapp?`<div>WhatsApp: ${esc(e.whatsapp)}</div>`:''}
+          ${e.instagram?`<div style="margin-top:2px">@${esc(e.instagram.replace(/^@/,''))}</div>`:''}
+        </div>
+      </div>`;
+  }catch(err){
+    renderCatalogoIndisponivel('Não consegui carregar o catálogo. Verifique sua internet e tente de novo.');
+  }
+}
+function renderCatalogoIndisponivel(msg){
+  const box=document.getElementById('catalogoPublico');
+  box.innerHTML=`<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f6f7f9;font-family:'Inter',-apple-system,sans-serif;padding:20px">
+    <div style="text-align:center;max-width:340px">
+      <div style="width:56px;height:56px;border-radius:16px;background:#fee;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#E5484D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <h2 style="font-size:17px;color:#17171c;margin-bottom:8px">Catálogo indisponível</h2>
+      <p style="font-size:13.5px;color:#8a93a1;line-height:1.5">${esc(msg)}</p>
+    </div>
+  </div>`;
+}
+
 async function init(){
+  // Link temporário de catálogo: ?catalogo=TOKEN — mostra só o catálogo, sem login
+  const catalogoToken=new URLSearchParams(location.search).get('catalogo');
+  if(catalogoToken){ await renderCatalogoPublico(catalogoToken); return; }
   applyTheme(localStorage.getItem('mp_theme')||'light');
   if(localStorage.getItem('mp_sidebar')==='collapsed'){
     const sb=document.getElementById('sidebar');if(sb)sb.classList.add('collapsed');
