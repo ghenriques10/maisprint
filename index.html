@@ -2250,7 +2250,12 @@ function salvarProdutoNoOrc(){
 }
 function cancelarProduto(){
   editandoProdIdx=null;
-  renderPricingPage(document.getElementById('main'));
+  if(editandoProdutoSalvoId){
+    editandoProdutoSalvoId=null;
+    goTab('products');
+  }else{
+    renderPricingPage(document.getElementById('main'));
+  }
 }
 
 
@@ -2262,7 +2267,7 @@ async function renderPricingForm(){
   main.innerHTML=`
     <div class="page-head-row">
       <div class="page-head" style="margin:0">
-        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.pricing}</svg> ${editandoProdIdx!==null?'Editar produto':'Novo produto'} — produção própria</h2>
+        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.pricing}</svg> ${editandoProdutoSalvoId?'Editando produto salvo':(editandoProdIdx!==null?'Editar produto':'Novo produto')} — produção própria</h2>
         <p class="desc">Adicione o que o produto usa. O preço aparece ao lado.</p>
       </div>
       <div style="display:flex;gap:8px">
@@ -2384,9 +2389,14 @@ async function renderPricingForm(){
           <input class="inp" type="number" min="1" style="width:80px" value="${orc.cestaQtd||1}" oninput="orc.cestaQtd=parseInt(this.value)||1;refreshSummary()">
           <span style="font-size:12px;color:var(--text-3)">unidade(s)</span>
         </div>
+        ${editandoProdutoSalvoId?`
+        <button class="btn-add" style="width:100%;margin-top:12px;justify-content:center" onclick="salvarEdicaoProdutoSalvo()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Salvar alterações no produto</button>
+        <button class="btn-ghost" style="width:100%;margin-top:8px;justify-content:center;color:var(--text-3)" onclick="cancelarProduto()">Cancelar</button>
+        `:`
         <button class="btn-add" style="width:100%;margin-top:12px;justify-content:center" onclick="salvarProdutoNoOrc()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ${editandoProdIdx!==null?'Salvar produto':'Adicionar ao orçamento'}</button>
         <button class="btn-ghost" style="width:100%;margin-top:8px;justify-content:center" onclick="salvarComoProdutoModal()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Salvar como produto reutilizável</button>
         <button class="btn-ghost" style="width:100%;margin-top:8px;justify-content:center;color:var(--text-3)" onclick="cancelarProduto()">Cancelar</button>
+        `}
       </div>
     </div>`;
 
@@ -2696,6 +2706,7 @@ async function atualizarCustosReceita(receita){
 }
 let prodCatFilter='todas';
 async function renderProductsPage(main){
+  editandoProdutoSalvoId=null;
   main.innerHTML=`
     <div class="page-head-row">
       <div class="page-head" style="margin:0">
@@ -2758,6 +2769,7 @@ async function drawProducts(){
         <td class="t-right">${p.precoCatalogo?`<b style="color:var(--brand)">${fmt(p.precoCatalogo)}</b>`:'<span class="t-sub">— não definido</span>'}</td>
         <td><div class="t-actions">
           <button class="btn-mini" onclick="usarProduto('${p.id}')">Usar</button>
+          <button class="act-btn" onclick="editarProdutoSalvo('${p.id}')" title="Editar receita"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
           <button class="act-btn" onclick="catalogoItemModal('${p.id}')" title="Foto e preço de venda"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button>
           <button class="act-btn danger" onclick="delProduto('${p.id}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
         </div></td>
@@ -3055,6 +3067,7 @@ async function usarProduto(id){
   if(!orcAtual)orcAtual={_editId:null,clienteId:'',produtos:[]};
   const receita=await atualizarCustosReceita(p.receita);
   editandoProdIdx=null; // será adicionado como novo produto
+  editandoProdutoSalvoId=null;
   priceMode=(receita.modo==='terceirizado')?'terceirizado':'avancado';
   orc={...novoOrc(),...receita};
   orc.modo=priceMode;
@@ -3064,6 +3077,36 @@ async function usarProduto(id){
   if(priceMode==='terceirizado') renderTerceirizadoForm();
   else renderPricingForm();
   toast('Produto carregado — ajuste a quantidade e adicione ao orçamento');
+}
+
+// Edita a RECEITA de um produto salvo de verdade (não adiciona a nenhum orçamento)
+let editandoProdutoSalvoId=null;
+async function editarProdutoSalvo(id){
+  const p=await dbGet('products',id);
+  if(!p)return;
+  editandoProdutoSalvoId=id;
+  editandoProdIdx=null;
+  window._produtoSalvoNome=p.nome;
+  window._produtoSalvoObs=p.obs||'';
+  priceMode=(p.receita.modo==='terceirizado')?'terceirizado':'avancado';
+  orc={...novoOrc(),...JSON.parse(JSON.stringify(p.receita))};
+  orc.modo=priceMode;
+  orc.descricao=p.nome;
+  delete orc._editId;
+  if(priceMode==='terceirizado') renderTerceirizadoForm();
+  else renderPricingForm();
+  toast('Editando a receita salva de "'+p.nome+'"');
+}
+async function salvarEdicaoProdutoSalvo(){
+  if(!orc.descricao||!orc.descricao.trim()){toast('Dê uma descrição ao produto');return;}
+  const id=editandoProdutoSalvoId;
+  const existente=await dbGet('products',id);
+  const receita=JSON.parse(JSON.stringify(orc));
+  receita.modo=priceMode;
+  await dbPut('products',{...(existente||{}),id,nome:orc.descricao,receita});
+  editandoProdutoSalvoId=null;
+  toast('Produto atualizado!');
+  goTab('products');
 }
 
 // Modal que lista produtos para escolher dentro da precificação
@@ -3106,7 +3149,7 @@ async function renderTerceirizadoForm(){
   main.innerHTML=`
     <div class="page-head-row">
       <div class="page-head" style="margin:0">
-        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v-3a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3"/><circle cx="10" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> ${editandoProdIdx!==null?'Editar produto':'Novo produto'} — terceirizado</h2>
+        <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v-3a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3"/><circle cx="10" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> ${editandoProdutoSalvoId?'Editando produto salvo':(editandoProdIdx!==null?'Editar produto':'Novo produto')} — terceirizado</h2>
         <p class="desc">Você revende: paga o site, soma a arte se houver, e define seu lucro.</p>
       </div>
       <div style="display:flex;gap:8px">
@@ -3197,9 +3240,14 @@ async function renderTerceirizadoForm(){
           <input class="inp" type="number" min="1" style="width:80px" value="${orc.cestaQtd||1}" oninput="orc.cestaQtd=parseInt(this.value)||1;refreshSummaryT()">
           <span style="font-size:12px;color:var(--text-3)">unidade(s)</span>
         </div>
+        ${editandoProdutoSalvoId?`
+        <button class="btn-add" style="width:100%;margin-top:12px;justify-content:center" onclick="salvarEdicaoProdutoSalvo()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Salvar alterações no produto</button>
+        <button class="btn-ghost" style="width:100%;margin-top:8px;justify-content:center;color:var(--text-3)" onclick="cancelarProduto()">Cancelar</button>
+        `:`
         <button class="btn-add" style="width:100%;margin-top:12px;justify-content:center" onclick="salvarProdutoNoOrc()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ${editandoProdIdx!==null?'Salvar produto':'Adicionar ao orçamento'}</button>
         <button class="btn-ghost" style="width:100%;margin-top:8px;justify-content:center" onclick="salvarComoProdutoModal()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Salvar como produto reutilizável</button>
         <button class="btn-ghost" style="width:100%;margin-top:8px;justify-content:center;color:var(--text-3)" onclick="cancelarProduto()">Cancelar</button>
+        `}
       </div>
     </div>`;
   refreshSummaryT();
