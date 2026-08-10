@@ -2691,24 +2691,47 @@ function refreshSummary(){
     lines+=`<div class="sum-line"><span class="sl-label">Serviços / extras</span><span class="sl-val">${fmt(c.custoAcab)}</span></div>`;
     lines+=`<div class="sum-line"><span class="sl-label">Custo fixo (rateio)</span><span class="sl-val">${fmt(c.custoFixo)}</span></div>`;
   }
-  // Simulador: "quanto você quer cobrar" — se preenchido, recalcula lucro/prejuízo em cima desse valor
-  const temManual=orc.precoManual>0;
-  const precoEfetivo=temManual?orc.precoManual:c.precoFinal;
-  const lucroEfetivo=precoEfetivo-c.custoTotal;
-  const margemEfetiva=precoEfetivo>0?(lucroEfetivo/precoEfetivo*100):0;
-  const ehPrejuizo=lucroEfetivo<0;
   box.innerHTML=lines+`
     <div class="sum-divider"></div>
     <div class="sum-line"><span class="sl-label" style="font-weight:600">Custo total</span><span class="sl-val">${fmt(c.custoTotal)}</span></div>
     <div style="margin:12px 0 10px">
       <label style="font-size:12px;color:var(--text-3);font-weight:600;display:block;margin-bottom:5px">Quanto você quer cobrar? <span style="font-weight:400">(opcional)</span></label>
-      <div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="o_precoManual" value="${orc.precoManual||''}" placeholder="${c.precoFinal.toFixed(2)}" oninput="orc.precoManual=parseFloat(this.value)||0;refreshSummary()"></div>
-      ${temManual?`<button type="button" onclick="orc.precoManual=0;refreshSummary()" style="font-size:11.5px;color:var(--text-3);text-decoration:underline;margin-top:5px;background:none;border:none;cursor:pointer">usar o preço calculado (${fmt(c.precoFinal)})</button>`:''}
+      <div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="o_precoManual" value="${orc.precoManual?orc.precoManual:''}" placeholder="${c.precoFinal.toFixed(2)}" oninput="atualizaPrecoManual(this.value)"></div>
+      <div id="o_precoManualLink"></div>
     </div>
-    <div class="sum-line"><span class="sl-label">${ehPrejuizo?'Prejuízo':'Lucro'} (${margemEfetiva.toFixed(1)}%)</span><span class="sl-val" style="color:${ehPrejuizo?'#E5484D':'#1A8A4E'};font-weight:700">${ehPrejuizo?'− ':''}${fmt(Math.abs(lucroEfetivo))}</span></div>
-    ${ehPrejuizo?`<div style="font-size:11.5px;color:#E5484D;background:rgba(229,72,77,.08);border-radius:8px;padding:8px 10px;margin-top:2px">⚠ Cobrando ${fmt(precoEfetivo)}, você perde ${fmt(Math.abs(lucroEfetivo))} nesse trabalho — está abaixo do seu custo.</div>`:''}
-    <div class="sum-total"><span class="st-label">${temManual?'VOCÊ VAI COBRAR':'PREÇO FINAL'}</span><span class="st-val" style="${ehPrejuizo?'color:#E5484D':''}">${fmt(precoEfetivo)}</span></div>
+    <div id="o_lucroLine"></div>
+    <div id="o_prejuizoAlert"></div>
+    <div class="sum-total" id="o_totalBlock"></div>
     <div class="sum-margin">Sua hora vale ${fmt(c.valorHora)}</div>`;
+  renderPrecoManualDerivados();
+}
+// Atualiza só os resultados derivados (lucro/prejuízo/total), sem tocar no campo de digitação —
+// evita que o campo perca o foco ou reinicie a cada tecla
+function atualizaPrecoManual(valStr){
+  orc.precoManual=parseFloat(valStr)||0;
+  renderPrecoManualDerivados();
+}
+function limparPrecoManual(){
+  orc.precoManual=0;
+  const inp=document.getElementById('o_precoManual');
+  if(inp)inp.value='';
+  renderPrecoManualDerivados();
+}
+function renderPrecoManualDerivados(){
+  const c=calcOrc(orc);
+  const temManual=orc.precoManual>0;
+  const precoEfetivo=temManual?orc.precoManual:c.precoFinal;
+  const lucroEfetivo=precoEfetivo-c.custoTotal;
+  const margemEfetiva=precoEfetivo>0?(lucroEfetivo/precoEfetivo*100):0;
+  const ehPrejuizo=lucroEfetivo<0;
+  const linkBox=document.getElementById('o_precoManualLink');
+  if(linkBox)linkBox.innerHTML=temManual?`<button type="button" onclick="limparPrecoManual()" style="font-size:11.5px;color:var(--text-3);text-decoration:underline;margin-top:5px;background:none;border:none;cursor:pointer">usar o preço calculado (${fmt(c.precoFinal)})</button>`:'';
+  const lucroLine=document.getElementById('o_lucroLine');
+  if(lucroLine)lucroLine.innerHTML=`<div class="sum-line"><span class="sl-label">${ehPrejuizo?'Prejuízo':'Lucro'} (${margemEfetiva.toFixed(1)}%)</span><span class="sl-val" style="color:${ehPrejuizo?'#E5484D':'#1A8A4E'};font-weight:700">${ehPrejuizo?'− ':''}${fmt(Math.abs(lucroEfetivo))}</span></div>`;
+  const alertBox=document.getElementById('o_prejuizoAlert');
+  if(alertBox)alertBox.innerHTML=ehPrejuizo?`<div style="font-size:11.5px;color:#E5484D;background:rgba(229,72,77,.08);border-radius:8px;padding:8px 10px;margin-top:2px">⚠ Cobrando ${fmt(precoEfetivo)}, você perde ${fmt(Math.abs(lucroEfetivo))} nesse trabalho — está abaixo do seu custo.</div>`:'';
+  const totalBlock=document.getElementById('o_totalBlock');
+  if(totalBlock)totalBlock.innerHTML=`<span class="st-label">${temManual?'VOCÊ VAI COBRAR':'PREÇO FINAL'}</span><span class="st-val" style="${ehPrejuizo?'color:#E5484D':''}">${fmt(precoEfetivo)}</span>`;
 }
 function toggleArteProp(){
   orc.temArte=document.getElementById('o_temArte').checked;
@@ -4641,7 +4664,7 @@ async function pdfModal(orderId){
   // Itens iniciais: a descrição do trabalho como 1 item com o preço final
   // Se o orçamento tem vários produtos, lista todos; senão, um item só
   if(o.produtos&&o.produtos.length){
-    pdfItens=o.produtos.map(p=>({desc:p.desc,qtd:p.qtd||1,valor:p.precoUnit||0,foto:''}));
+    pdfItens=o.produtos.map(p=>({desc:(p.receita&&p.receita.descricao)||p.desc||'Produto',qtd:p.qtd||1,valor:p.precoUnit||0,foto:''}));
   }else{
     pdfItens=[{desc:o.descricao||'Serviço',qtd:1,valor:o.precoFinal||0,foto:''}];
   }
