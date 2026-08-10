@@ -1407,6 +1407,7 @@ const MAT_TIPOS={
   folha:{label:'Por folha / unidade',desc:'Papel, adesivo em folha. Compra em pacote, usa por folha.',compraLabel:'Itens no pacote',usoLabel:'folha'},
   metro:{label:'Por metro linear',desc:'BOPP, vinil, lona em bobina. Compra a bobina, usa em metros.',compraLabel:'Metros na bobina',usoLabel:'metro'},
   peca:{label:'Por peça avulsa',desc:'Caneca, chaveiro, botton. Compra e usa por unidade.',compraLabel:'Peças compradas',usoLabel:'peça'},
+  avulso:{label:'Item avulso (ainda não comprado)',desc:'',compraLabel:'',usoLabel:'un'},
 };
 async function renderMaterialsPage(main){
   main.innerHTML=`
@@ -2410,10 +2411,9 @@ let matAddMode='qtd';
 async function drawMatPicker(){
   const mats=(await dbAll('materials')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
   const box=document.getElementById('matPicker');if(!box)return;
-  if(mats.length===0){box.innerHTML=`<p style="color:var(--text-3);font-size:13px">Nenhum material cadastrado. Vá em Materiais primeiro.</p>`;return;}
   window._matsCache=mats;
   matAddMode='qtd';
-  box.innerHTML=`
+  const pickerNormal = mats.length===0 ? `<p style="color:var(--text-3);font-size:13px">Nenhum material cadastrado ainda. Vá em Materiais para cadastrar, ou use o campo de material avulso abaixo.</p>` : `
     <div class="form-row"><label>Buscar material</label><input class="inp" id="mp_busca" placeholder="Digite para filtrar..." oninput="filtrarMatSelect()"></div>
     <div class="radio-grid" style="grid-template-columns:1fr 1fr;margin:6px 0 12px">
       <div class="radio-opt sel" id="mp_modoQtd" onclick="setMatAddMode('qtd')">
@@ -2437,8 +2437,42 @@ async function drawMatPicker(){
       <button class="btn-mini" onclick="addMatItem()">+ Adicionar</button>
     </div>
     <div id="mp_areaInfo" style="font-size:12px;color:var(--text-3);margin-top:4px"></div>`;
-  filtrarMatSelect();
+  box.innerHTML=pickerNormal+`
+    <div style="margin-top:10px">
+      <span onclick="toggleMatAvulso()" id="mp_avulsoToggle" style="font-size:12px;color:var(--text-3);cursor:pointer;text-decoration:underline;text-underline-offset:2px">+ Material avulso (ainda não comprei)</span>
+      <div id="mp_avulsoBox" style="display:none;margin-top:10px;padding:12px;background:var(--surface-2);border-radius:10px">
+        <p style="font-size:11.5px;color:var(--text-3);margin-bottom:8px">Pra quando você vai orçar algo com um material que ainda não comprou nem cadastrou. Entra no custo normalmente, mas não desconta estoque.</p>
+        <div class="item-add-row">
+          <div class="form-row"><label>Nome do material</label><input class="inp" id="mp_avNome" placeholder="Ex: Papel especial dourado"></div>
+          <div class="form-row" style="max-width:90px"><label>Qtd</label><input class="inp" type="number" step="0.01" id="mp_avQtd" placeholder="1"></div>
+          <div class="form-row" style="max-width:120px"><label>Custo estimado</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="mp_avCusto" placeholder="0,00"></div></div>
+          <button class="btn-mini" onclick="addMatItemAvulso()">+ Adicionar</button>
+        </div>
+      </div>
+    </div>`;
+  if(mats.length>0){ filtrarMatSelect(); }
   drawMatSel();
+}
+function toggleMatAvulso(){
+  const box=document.getElementById('mp_avulsoBox');
+  const aberto=box.style.display==='block';
+  box.style.display=aberto?'none':'block';
+  document.getElementById('mp_avulsoToggle').textContent=aberto?'+ Material avulso (ainda não comprei)':'− Material avulso (ainda não comprei)';
+  if(!aberto)setTimeout(()=>document.getElementById('mp_avNome')?.focus(),50);
+}
+function addMatItemAvulso(){
+  const nome=document.getElementById('mp_avNome').value.trim();
+  const qtd=parseFloat(document.getElementById('mp_avQtd').value)||0;
+  const custo=parseFloat(document.getElementById('mp_avCusto').value)||0;
+  if(!nome){toast('Dê um nome ao material avulso');return;}
+  if(qtd<=0){toast('Informe a quantidade');return;}
+  if(custo<=0){toast('Informe o custo estimado');return;}
+  orc.materiais.push({matId:'',nome,tipo:'avulso',custoUnit:custo,qtd,avulso:true,estoque:0,estoqueMin:0});
+  document.getElementById('mp_avNome').value='';
+  document.getElementById('mp_avQtd').value='';
+  document.getElementById('mp_avCusto').value='';
+  drawMatSel();refreshSummary();
+  toast('Material avulso adicionado ao orçamento');
 }
 function setMatAddMode(m){
   matAddMode=m;
@@ -2528,7 +2562,9 @@ function drawMatSel(){
     const estoque=m.estoque||0;
     const sobra=estoque-m.qtd;
     let aviso='';
-    if(m.qtd>estoque){
+    if(m.avulso){
+      aviso=`<div style="font-size:11px;color:var(--brand);font-weight:600;margin-top:2px">✎ avulso — ainda não comprado</div>`;
+    } else if(m.qtd>estoque){
       aviso=`<div class="stock-warn">⚠ Estoque insuficiente: você tem ${estoque.toLocaleString('pt-BR')} ${t.usoLabel}${estoque!==1?'s':''}, vai faltar ${(m.qtd-estoque).toLocaleString('pt-BR')}</div>`;
     } else if(m.estoqueMin>0 && sobra<=m.estoqueMin){
       aviso=`<div class="stock-warn" style="color:#D97706">⚠ Após este trabalho o estoque fica baixo (${sobra.toLocaleString('pt-BR')} ${t.usoLabel}${sobra!==1?'s':''})</div>`;
