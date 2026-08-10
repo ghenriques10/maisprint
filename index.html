@@ -2036,7 +2036,7 @@ let orcAtual=null; // o orçamento sendo montado: {_editId, clienteId, produtos:
 
 async function renderPricingPage(main){
   // Se não há orçamento em montagem, começa um novo
-  if(!orcAtual)orcAtual={_editId:null,clienteId:'',produtos:[]};
+  if(!orcAtual)orcAtual={_editId:null,clienteId:'',nome:'',produtos:[]};
   const clients=(await dbAll('clients')).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
   const cliOpts=`<option value="">— Selecione (opcional) —</option>`+clients.map(c=>`<option value="${c.id}" ${orcAtual.clienteId===c.id?'selected':''}>${esc(c.nome)}</option>`).join('');
   const total=orcAtual.produtos.reduce((s,p)=>s+(p.precoUnit*p.qtd),0);
@@ -2050,7 +2050,10 @@ async function renderPricingPage(main){
     </div>
 
     <div class="card" style="margin-bottom:18px">
-      <div class="form-row" style="max-width:400px"><label>Cliente deste orçamento</label><select class="inp" onchange="orcAtual.clienteId=this.value">${cliOpts}</select></div>
+      <div class="form-grid">
+        <div class="form-row"><label>Cliente deste orçamento</label><select class="inp" onchange="orcAtual.clienteId=this.value">${cliOpts}</select></div>
+        <div class="form-row"><label>Nome do orçamento <span class="help">(opcional — se vazio, usamos um nome automático)</span></label><input class="inp" value="${esc(orcAtual.nome||'')}" placeholder="Ex: Kit de aniversário - Maria" oninput="orcAtual.nome=this.value"></div>
+      </div>
     </div>
 
     <div class="card">
@@ -2108,7 +2111,7 @@ function drawOrcProdList(){
 
 function novoOrcamento(){
   if(orcAtual.produtos.length>0&&!confirm('Começar um orçamento novo? O atual será descartado se não estiver salvo.'))return;
-  orcAtual={_editId:null,clienteId:'',produtos:[]};
+  orcAtual={_editId:null,clienteId:'',nome:'',produtos:[]};
   renderPricingPage(document.getElementById('main'));
 }
 function removeProduto(i){
@@ -2153,7 +2156,7 @@ async function editarOrcamento(id){
     // orçamento antigo (1 produto): reconstrói a partir dos campos
     produtos=[{receita:JSON.parse(JSON.stringify(o)),qtd:1,precoUnit:o.precoFinal||0}];
   }
-  orcAtual={_editId:id,clienteId:o.clienteId||'',produtos};
+  orcAtual={_editId:id,clienteId:o.clienteId||'',nome:o.descricao||'',produtos};
   renderPricingPage(document.getElementById('main'));
 }
 
@@ -2168,7 +2171,8 @@ async function salvarOrcamentoFinal(){
       todosMat.push({...m,qtd:(m.qtd||0)*p.qtd});
     });
   });
-  const nome=orcAtual.produtos.length===1?orcAtual.produtos[0].receita.descricao:`Orçamento com ${orcAtual.produtos.length} produtos`;
+  const nomeAuto=orcAtual.produtos.length===1?orcAtual.produtos[0].receita.descricao:`Orçamento com ${orcAtual.produtos.length} produtos`;
+  const nome=(orcAtual.nome&&orcAtual.nome.trim())?orcAtual.nome.trim():nomeAuto;
   const id=orcAtual._editId||uid();
   const ex=orcAtual._editId?await dbGet('orders',id):null;
   await dbPut('orders',{
@@ -2182,7 +2186,7 @@ async function salvarOrcamentoFinal(){
     criadoEm:ex?ex.criadoEm:Date.now()
   });
   toast(orcAtual._editId?'Orçamento atualizado!':'Orçamento salvo!');
-  orcAtual={_editId:null,clienteId:'',produtos:[]};
+  orcAtual={_editId:null,clienteId:'',nome:'',produtos:[]};
   renderPricingPage(document.getElementById('main'));
 }
 
@@ -3124,7 +3128,7 @@ async function usarProduto(id){
   const p=await dbGet('products',id);
   if(!p)return;
   // garante que há um orçamento em montagem
-  if(!orcAtual)orcAtual={_editId:null,clienteId:'',produtos:[]};
+  if(!orcAtual)orcAtual={_editId:null,clienteId:'',nome:'',produtos:[]};
   const receita=await atualizarCustosReceita(p.receita);
   editandoProdIdx=null; // será adicionado como novo produto
   editandoProdutoSalvoId=null;
