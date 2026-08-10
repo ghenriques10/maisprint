@@ -4605,9 +4605,9 @@ async function pdfModal(orderId){
   // Itens iniciais: a descrição do trabalho como 1 item com o preço final
   // Se o orçamento tem vários produtos, lista todos; senão, um item só
   if(o.produtos&&o.produtos.length){
-    pdfItens=o.produtos.map(p=>({desc:p.desc,qtd:p.qtd||1,valor:p.precoUnit||0}));
+    pdfItens=o.produtos.map(p=>({desc:p.desc,qtd:p.qtd||1,valor:p.precoUnit||0,foto:''}));
   }else{
-    pdfItens=[{desc:o.descricao||'Serviço',qtd:1,valor:o.precoFinal||0}];
+    pdfItens=[{desc:o.descricao||'Serviço',qtd:1,valor:o.precoFinal||0,foto:''}];
   }
   window._pdfOrder=o;window._pdfCli=cli;
   openModal(`
@@ -4616,7 +4616,7 @@ async function pdfModal(orderId){
       <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
-      <p style="font-size:12.5px;color:var(--text-2);margin-bottom:16px">Revise os itens que o cliente vai ver. Seus custos internos não aparecem — só os valores finais.</p>
+      <p style="font-size:12.5px;color:var(--text-2);margin-bottom:16px">Revise os itens que o cliente vai ver. Clique no quadrado pra adicionar uma foto (opcional). Seus custos internos não aparecem — só os valores finais.</p>
       <div class="modal-section-label" style="margin-top:0">Itens do orçamento</div>
       <div id="pdfItensList"></div>
       <button class="btn-save" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong);margin-top:4px;padding:8px 14px;font-size:13px" onclick="addPdfItem()">+ Adicionar item</button>
@@ -4634,14 +4634,33 @@ async function pdfModal(orderId){
 function drawPdfItens(){
   const box=document.getElementById('pdfItensList');if(!box)return;
   box.innerHTML=pdfItens.map((it,i)=>`
-    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
-      <input class="inp" value="${esc(it.desc)}" placeholder="Descrição" oninput="pdfItens[${i}].desc=this.value" style="flex:1">
-      <input class="inp" type="number" value="${it.qtd}" oninput="pdfItens[${i}].qtd=parseFloat(this.value)||0;sumPdf()" style="width:70px" title="Qtd">
-      <div class="inp-prefix" style="width:120px"><span>R$</span><input class="inp" type="number" step="0.01" value="${it.valor}" oninput="pdfItens[${i}].valor=parseFloat(this.value)||0;sumPdf()"></div>
-      <button class="act-btn danger" onclick="pdfItens.splice(${i},1);drawPdfItens()" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <div style="display:flex;gap:10px;margin-bottom:10px;align-items:flex-start;padding:10px;background:var(--surface-2);border-radius:10px">
+      <div style="flex-shrink:0;text-align:center;width:56px">
+        <div id="pdfFotoPrev_${i}" style="width:52px;height:52px;border-radius:9px;overflow:hidden;background:var(--surface-3);display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="document.getElementById('pdfFotoInp_${i}').click()" title="Adicionar foto (opcional)">
+          ${it.foto?`<img src="${it.foto}" style="width:100%;height:100%;object-fit:cover">`:`<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`}
+        </div>
+        <input type="file" accept="image/*" id="pdfFotoInp_${i}" style="display:none" onchange="handlePdfItemFoto(event,${i})">
+        <div style="font-size:9.5px;color:var(--brand);margin-top:4px;cursor:pointer;font-weight:600" onclick="document.getElementById('pdfFotoInp_${i}').click()">${it.foto?'trocar':'+ foto'}</div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:7px;min-width:0">
+        <input class="inp" value="${esc(it.desc)}" placeholder="Descrição" oninput="pdfItens[${i}].desc=this.value">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="inp" type="number" value="${it.qtd}" oninput="pdfItens[${i}].qtd=parseFloat(this.value)||0;sumPdf()" style="width:64px" title="Qtd">
+          <div class="inp-prefix" style="width:120px"><span>R$</span><input class="inp" type="number" step="0.01" value="${it.valor}" oninput="pdfItens[${i}].valor=parseFloat(this.value)||0;sumPdf()"></div>
+          <button class="act-btn danger" onclick="pdfItens.splice(${i},1);drawPdfItens()" title="Remover" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+      </div>
     </div>`).join('')+`<div style="text-align:right;font-size:14px;font-weight:600;margin-top:6px">Total: <span style="color:var(--brand)" id="pdfTotal">${fmt(pdfItens.reduce((s,it)=>s+it.qtd*it.valor,0))}</span></div>`;
 }
-function addPdfItem(){pdfItens.push({desc:'',qtd:1,valor:0});drawPdfItens();}
+function handlePdfItemFoto(ev,i){
+  const file=ev.target.files[0];if(!file)return;
+  if(file.size>5*1024*1024){toast('Imagem muito grande (máx 5MB)');return;}
+  resizeImageSquare(file,400,out=>{
+    pdfItens[i].foto=out;
+    drawPdfItens();
+  });
+}
+function addPdfItem(){pdfItens.push({desc:'',qtd:1,valor:0,foto:''});drawPdfItens();}
 function sumPdf(){const el=document.getElementById('pdfTotal');if(el)el.textContent=fmt(pdfItens.reduce((s,it)=>s+it.qtd*it.valor,0));}
 
 async function gerarPDF(){
@@ -4675,6 +4694,23 @@ async function gerarPDF(){
     try{const f=dataurl.indexOf('image/png')>=0?'PNG':'JPEG';const p=doc.getImageProperties(dataurl);
       const ratio=p.width/p.height;let w=maxw,h=maxw/ratio;if(h>maxh){h=maxh;w=maxh*ratio;}
       doc.addImage(dataurl,f,x+(maxw-w)/2,y+(maxh-h)/2,w,h);return true;}catch(err){return false;}
+  }
+  // Recorta em "cover" (preenche o quadrado inteiro) — mesma técnica do catálogo
+  function imgCover(dataurl,x,y,size,radius){
+    if(!dataurl)return false;
+    try{
+      const f=dataurl.indexOf('image/png')>=0?'PNG':'JPEG';
+      const p=doc.getImageProperties(dataurl);
+      const srcRatio=p.width/p.height;
+      let w=size,h=size;
+      if(srcRatio>1){ w=size*srcRatio; } else { h=size/srcRatio; }
+      doc.saveGraphicsState();
+      if(radius)doc.roundedRect(x,y,size,size,radius,radius); else doc.rect(x,y,size,size);
+      doc.clip();doc.discardPath();
+      doc.addImage(dataurl,f,x-(w-size)/2,y-(h-size)/2,w,h);
+      doc.restoreGraphicsState();
+      return true;
+    }catch(err){return false;}
   }
 
   // FUNDO
@@ -4715,38 +4751,61 @@ async function gerarPDF(){
   doc.setTextColor(201,191,255);doc.setFont('helvetica','normal');doc.setFontSize(7.5);
   doc.text('Válido até '+validUntil.toLocaleDateString('pt-BR'),406,by+50);
 
-  // TABELA - cabeçalho preto
-  let ty=by+92;
-  const COL_DESC=52, COL_QNT=370, COL_VAL=450, COL_TOT=W-52;
-  doc.setFillColor(...PRETO);doc.roundedRect(40,ty,W-80,26,5,5,'F');
+  // PÍLULA "ITENS DO ORÇAMENTO" (mesma linguagem do catálogo)
+  let ty=by+90;
+  doc.setFillColor(...ROXO);doc.roundedRect(40,ty,150,24,12,12,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9.5);
+  doc.text('ITENS DO ORÇAMENTO',52,ty+16);
+
+  // CABEÇALHO DA TABELA
+  ty+=38;
+  const COL_DESC=48, COL_QNT=372, COL_VAL=452, COL_TOT=W-48;
+  doc.setFillColor(...PRETO);doc.roundedRect(40,ty,W-80,26,6,6,'F');
   doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9);
   doc.text('DESCRIÇÃO',COL_DESC,ty+17);
   doc.text('QNT',COL_QNT,ty+17,{align:'center'});
   doc.text('VALOR UN',COL_VAL,ty+17,{align:'right'});
   doc.text('TOTAL',COL_TOT,ty+17,{align:'right'});
 
-  // Linhas com quebra de texto REAL
-  let ry=ty+26;
+  // LINHAS — estilo "card" arredondado, com foto opcional por item
+  let ry=ty+26+6;
+  const THUMB=36;
   pdfItens.forEach((it,i)=>{
     const sub=it.qtd*it.valor;
+    const temFoto=!!it.foto;
+    const textX = temFoto ? COL_DESC+THUMB+12 : COL_DESC;
+    const textWidth = (temFoto ? 300-THUMB-12 : 300);
     doc.setFont('helvetica','normal');doc.setFontSize(9.5);
-    const linhasDesc=doc.splitTextToSize(String(it.desc),300); // quebra de verdade
-    const altLinha=Math.max(26, 12*linhasDesc.length+14);
-    if(i%2===0){doc.setFillColor(...ZEBRA);doc.rect(40,ry,W-80,altLinha,'F');}
-    // descrição multilinha
+    const linhasDesc=doc.splitTextToSize(String(it.desc),textWidth);
+    const textH=12*linhasDesc.length+14;
+    const altLinha=Math.max(temFoto?THUMB+16:28, textH);
+
+    // controle de página (se não couber, começa página nova)
+    if(ry+altLinha>H-110){
+      doc.addPage();
+      doc.setFillColor(255,255,255);doc.rect(0,0,W,H,'F');
+      ry=40;
+    }
+
+    if(i%2===0){doc.setFillColor(...ZEBRA);doc.roundedRect(40,ry,W-80,altLinha,7,7,'F');}
+    if(temFoto)imgCover(it.foto,COL_DESC,ry+(altLinha-THUMB)/2,THUMB,6);
+
+    // descrição multilinha (verticalmente centralizada na linha)
     doc.setTextColor(...PRETO);doc.setFont('helvetica','normal');doc.setFontSize(9.5);
-    let tyD=ry+16;
-    linhasDesc.forEach(ln=>{doc.text(ln,COL_DESC,tyD);tyD+=12;});
-    // qnt / valor / total
-    doc.text(String(it.qtd),COL_QNT,ry+16,{align:'center'});
-    doc.text(fmtMoeda(it.valor),COL_VAL,ry+16,{align:'right'});
-    doc.setFont('helvetica','bold');doc.text(fmtMoeda(sub),COL_TOT,ry+16,{align:'right'});
-    ry+=altLinha;
-    doc.setDrawColor(...CINZA_LINHA);doc.setLineWidth(0.5);doc.line(40,ry,W-40,ry);
+    let tyD=ry+(altLinha-12*linhasDesc.length)/2+9;
+    linhasDesc.forEach(ln=>{doc.text(ln,textX,tyD);tyD+=12;});
+
+    const midY=ry+altLinha/2+3;
+    doc.setFont('helvetica','normal');doc.setFontSize(9.5);
+    doc.text(String(it.qtd),COL_QNT,midY,{align:'center'});
+    doc.text(fmtMoeda(it.valor),COL_VAL,midY,{align:'right'});
+    doc.setFont('helvetica','bold');doc.text(fmtMoeda(sub),COL_TOT,midY,{align:'right'});
+    ry+=altLinha+4;
   });
 
   // VALOR TOTAL (balão roxo arredondado) + PIX
   ry+=16;
+  if(ry+70>H-60){ doc.addPage(); doc.setFillColor(255,255,255);doc.rect(0,0,W,H,'F'); ry=40; }
   const TOTW=240;
   gradHRound(W-40-TOTW,ry,TOTW,34,17,ROXO,ROXO_ESC);
   doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(11);
