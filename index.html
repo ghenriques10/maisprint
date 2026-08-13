@@ -4004,6 +4004,25 @@ async function advanceStatus(id,target){
 async function payModal(id){
   const o=await dbGet('orders',id);
   const restante=(o.precoFinal||0)-(o.entrada||0);
+  if(restante<=0){
+    openModal(`
+      <div class="modal-head">
+        <h3>Dar baixa no pagamento</h3>
+        <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="pay_id" value="${o.id}">
+        <p style="font-size:13.5px;color:var(--text-2)">Esse pedido já está com o valor todo registrado como entrada. Confirma marcar como <b>pago</b>?</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn-save" onclick="confirmPay()">Confirmar</button>
+      </div>`);
+    return;
+  }
+  const bancos=CONFIG.bancos&&CONFIG.bancos.length?CONFIG.bancos:[{id:'caixa',nome:'Dinheiro / Caixa'}];
+  window._payRestante=restante;
+  window._payDivisao=[{banco:bancos[0].id,valor:restante}];
   openModal(`
     <div class="modal-head">
       <h3>Dar baixa no pagamento</h3>
@@ -4012,27 +4031,62 @@ async function payModal(id){
     <div class="modal-body">
       <input type="hidden" id="pay_id" value="${o.id}">
       <div class="calc-box" style="margin:0 0 16px"><div class="label">Falta receber</div><div class="val">${fmt(restante)}</div></div>
-      <p style="font-size:13.5px;color:var(--text-2)">Confirma que recebeu o restante (${fmt(restante)})? O pedido será marcado como <b>pago</b>.</p>
-      <p style="font-size:12.5px;color:var(--text-3);margin-top:10px">No próximo bloco (Financeiro), esse recebimento entrará automaticamente nas suas receitas.</p>
+      <p style="font-size:12.5px;color:var(--text-2);margin-bottom:10px">Pra qual conta (ou contas) esse dinheiro vai? Dá pra dividir — por exemplo, parte pro caixa da gráfica (custo) e parte pra outra conta (lucro).</p>
+      <div id="payDivisaoList"></div>
+      <button type="button" class="btn-save" style="background:var(--surface-3);color:var(--text);box-shadow:none;border:1px solid var(--border-strong);margin-top:6px;padding:8px 14px;font-size:13px" onclick="addPayDivisaoLinha()">+ Adicionar outra conta</button>
+      <div id="payDivisaoResumo"></div>
     </div>
     <div class="modal-foot">
       <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
-      <button class="btn-save" onclick="confirmPay()">Confirmar recebimento</button>
+      <button class="btn-save" id="payConfirmBtn" onclick="confirmPay()">Confirmar recebimento</button>
     </div>`);
+  drawPayDivisao();
+}
+function drawPayDivisao(){
+  const bancos=CONFIG.bancos&&CONFIG.bancos.length?CONFIG.bancos:[{id:'caixa',nome:'Dinheiro / Caixa'}];
+  const box=document.getElementById('payDivisaoList');if(!box)return;
+  box.innerHTML=window._payDivisao.map((linha,i)=>`
+    <div class="item-add-row" style="margin-bottom:8px;align-items:flex-end">
+      <div class="form-row"><label>Conta</label><select class="inp" onchange="window._payDivisao[${i}].banco=this.value">${bancos.map(b=>`<option value="${b.id}" ${linha.banco===b.id?'selected':''}>${esc(b.nome)}</option>`).join('')}</select></div>
+      <div class="form-row" style="max-width:140px"><label>Valor</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" value="${linha.valor||''}" oninput="window._payDivisao[${i}].valor=parseFloat(this.value)||0;drawPayDivisaoResumo()"></div></div>
+      ${window._payDivisao.length>1?`<button class="act-btn danger" onclick="window._payDivisao.splice(${i},1);drawPayDivisao()" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`:''}
+    </div>`).join('');
+  drawPayDivisaoResumo();
+}
+function addPayDivisaoLinha(){
+  const bancos=CONFIG.bancos&&CONFIG.bancos.length?CONFIG.bancos:[{id:'caixa',nome:'Dinheiro / Caixa'}];
+  const jaSomado=window._payDivisao.reduce((s,l)=>s+(l.valor||0),0);
+  const sobra=Math.max(0,window._payRestante-jaSomado);
+  const usados=window._payDivisao.map(l=>l.banco);
+  const proxBanco=bancos.find(b=>!usados.includes(b.id))||bancos[0];
+  window._payDivisao.push({banco:proxBanco.id,valor:sobra});
+  drawPayDivisao();
+}
+function drawPayDivisaoResumo(){
+  const box=document.getElementById('payDivisaoResumo');if(!box)return;
+  const soma=window._payDivisao.reduce((s,l)=>s+(l.valor||0),0);
+  const dif=window._payRestante-soma;
+  const bateu=Math.abs(dif)<0.005;
+  box.innerHTML=`<div style="display:flex;justify-content:space-between;font-size:13px;padding-top:10px;margin-top:4px;border-top:1px solid var(--border)">
+    <span class="sl-label">Total dividido</span><b style="color:${bateu?'#1A8A4E':'#E5484D'}">${fmt(soma)}</b>
+  </div>
+  ${!bateu?`<div style="font-size:11.5px;color:#E5484D;margin-top:4px">⚠ ${dif>0?'Ainda falta dividir '+fmt(dif):'Passou '+fmt(Math.abs(dif))+' do valor recebido'} — ajuste os valores para poder confirmar.</div>`:''}`;
+  const btn=document.getElementById('payConfirmBtn');
+  if(btn){ btn.style.opacity=bateu?'1':'.5'; btn.style.pointerEvents=bateu?'auto':'none'; }
 }
 async function confirmPay(){
   const id=val('pay_id');
   const o=await dbGet('orders',id);
-  const restante=(o.precoFinal||0)-(o.entrada||0);
+  const divisao=(window._payDivisao||[]).filter(l=>l.valor>0);
   o.entrada=o.precoFinal;
   o.pago='sim';
   o.pagoEm=Date.now();
   await dbPut('orders',o);
-  // Registra o restante recebido como receita
-  if(restante>0){
+  // Registra uma receita para cada conta escolhida na divisão
+  for(const linha of divisao){
     await dbPut('transactions',{
       id:uid(),tipo:'receita',descricao:'Pagamento — '+o.descricao,
-      valor:restante,categoria:'Venda de pedido',banco:'caixa',
+      valor:linha.valor,categoria:'Venda de pedido',banco:linha.banco,
       clienteId:o.clienteId,pedidoId:o.id,data:new Date().toISOString().slice(0,10),
       confirmada:true,auto:true,criadoEm:Date.now()
     });
