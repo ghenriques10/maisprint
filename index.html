@@ -3661,10 +3661,10 @@ async function renderDashboardPage(main){
 
     <div class="card">
       <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON.clock}</svg> Próximas entregas</div>
-      <div class="card-sub">O que está na fila, por ordem de prazo.</div>
+      <div class="card-sub">O que está na fila, por ordem de prazo. "Custo" é o quanto o trabalho te custou — separe esse valor no caixa da gráfica ao dar baixa.</div>
       ${fila.length===0?`<div class="empty-state" style="padding:40px 20px"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON.orders}</svg><h3>Nenhum pedido na fila</h3><p>Aprove um orçamento na aba Pedidos para ele aparecer aqui.</p></div>`:`
       <div class="tbl-scroll"><table>
-        <thead><tr><th>Trabalho</th><th>Cliente</th><th>Prazo</th><th>Status</th><th class="t-right">Valor</th></tr></thead>
+        <thead><tr><th>Trabalho</th><th>Cliente</th><th>Prazo</th><th>Status</th><th class="t-right">Custo</th><th class="t-right">Valor</th></tr></thead>
         <tbody>${fila.map(o=>{
           let prazoTxt='—';
           if(o.prazo){
@@ -3673,14 +3673,28 @@ async function renderDashboardPage(main){
             else if(isToday(o))prazoTxt=`<span class="due-soon">${d} (hoje)</span>`;
             else prazoTxt=d;
           }
+          const custoPedido=calcCustoPedido(o);
           return `<tr style="cursor:pointer" onclick="orderDetail('${o.id}')">
             <td><div class="t-main">${esc(o.descricao)}</div></td>
             <td>${esc(cMap[o.clienteId]||'—')}</td>
             <td>${prazoTxt}</td>
             <td><span class="status-badge ${STATUS_CLASS[o.status]}">${STATUS_LABEL[o.status]}</span></td>
+            <td class="t-right"><span class="t-sub">${fmt(custoPedido)}</span></td>
             <td class="t-right"><b>${fmt(o.precoFinal)}</b></td>
           </tr>`;}).join('')}</tbody></table></div>`}
     </div>`;
+}
+// Calcula o custo real de um pedido (soma dos custos de todos os produtos que o compõem)
+function calcCustoPedido(o){
+  try{
+    if(o.produtos&&o.produtos.length){
+      return o.produtos.reduce((s,p)=>{
+        const c=calcOrc(p.receita||{});
+        return s+(c.custoTotal||0)*(p.qtd||1);
+      },0);
+    }
+    return calcOrc(o).custoTotal||0;
+  }catch(err){ return 0; }
 }
 
 /* ---------- PEDIDOS ---------- */
