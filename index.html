@@ -2395,6 +2395,7 @@ async function renderPricingForm(){
           <input class="inp" type="number" min="1" style="width:80px" value="${orc.cestaQtd||1}" oninput="orc.cestaQtd=parseInt(this.value)||1;refreshSummary()">
           <span style="font-size:12px;color:var(--text-3)">unidade(s)</span>
         </div>
+        <div id="qtdTotalPreview" style="text-align:right;font-size:12.5px;color:var(--text-2);margin-top:8px"></div>
         ${editandoProdutoSalvoId?`
         <button class="btn-add" style="width:100%;margin-top:12px;justify-content:center" onclick="salvarEdicaoProdutoSalvo()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Salvar alterações no produto</button>
         <button class="btn-ghost" style="width:100%;margin-top:8px;justify-content:center;color:var(--text-3)" onclick="cancelarProduto()">Cancelar</button>
@@ -2441,7 +2442,19 @@ async function drawMatPicker(){
       </div>
       <button class="btn-mini" onclick="addMatItem()">+ Adicionar</button>
     </div>
-    <div id="mp_areaInfo" style="font-size:12px;color:var(--text-3);margin-top:4px"></div>`;
+    <div id="mp_areaInfo" style="font-size:12px;color:var(--text-3);margin-top:4px"></div>
+    <div style="margin-top:8px">
+      <span onclick="toggleRendCalc()" id="mp_rendToggle" style="font-size:12px;color:var(--text-3);cursor:pointer;text-decoration:underline;text-underline-offset:2px">🔢 cabem várias cópias na mesma folha? calcular automático</span>
+      <div id="mp_rendBox" style="display:none;margin-top:10px;padding:12px;background:var(--surface-2);border-radius:10px">
+        <p style="font-size:11.5px;color:var(--text-3);margin-bottom:8px">Ex: cabem 4 impressões numa folha e você precisa de 1 agora → o sistema calcula 0,25 folha sozinho, no lugar da conta de cabeça.</p>
+        <div class="item-add-row">
+          <div class="form-row" style="max-width:110px"><label>Cópias que quero</label><input class="inp" type="number" step="0.01" id="mp_rendCopias" value="1" oninput="calcRendimento()"></div>
+          <div class="form-row" style="max-width:120px"><label>Cabem por folha/peça</label><input class="inp" type="number" step="0.01" id="mp_rendPorFolha" placeholder="Ex: 4" oninput="calcRendimento()"></div>
+          <div class="form-row"><label>Resultado</label><div class="calc-box" style="margin:0;padding:8px 10px"><div class="val" id="mp_rendResult" style="font-size:15px">—</div></div></div>
+          <button class="btn-mini" onclick="aplicarRendimento()">Usar</button>
+        </div>
+      </div>
+    </div>`;
   box.innerHTML=pickerNormal+`
     <div style="margin-top:10px">
       <span onclick="toggleMatAvulso()" id="mp_avulsoToggle" style="font-size:12px;color:var(--text-3);cursor:pointer;text-decoration:underline;text-underline-offset:2px">+ Material avulso (ainda não comprei)</span>
@@ -2457,6 +2470,30 @@ async function drawMatPicker(){
     </div>`;
   if(mats.length>0){ filtrarMatSelect(); }
   drawMatSel();
+}
+function toggleRendCalc(){
+  const box=document.getElementById('mp_rendBox');
+  const aberto=box.style.display==='block';
+  box.style.display=aberto?'none':'block';
+  document.getElementById('mp_rendToggle').textContent=aberto?'🔢 cabem várias cópias na mesma folha? calcular automático':'🔢 fechar calculadora';
+  if(!aberto)calcRendimento();
+}
+function calcRendimento(){
+  const copias=parseFloat(document.getElementById('mp_rendCopias').value)||0;
+  const porFolha=parseFloat(document.getElementById('mp_rendPorFolha').value)||0;
+  const result=document.getElementById('mp_rendResult');
+  if(porFolha<=0){result.textContent='—';return;}
+  const qtd=copias/porFolha;
+  result.textContent=qtd.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:4})+' folha(s)';
+}
+function aplicarRendimento(){
+  const copias=parseFloat(document.getElementById('mp_rendCopias').value)||0;
+  const porFolha=parseFloat(document.getElementById('mp_rendPorFolha').value)||0;
+  if(porFolha<=0){toast('Informe quantas cópias cabem por folha');return;}
+  const qtd=copias/porFolha;
+  const qtdInput=document.getElementById('mp_qtd');
+  if(qtdInput){qtdInput.value=qtd.toFixed(4).replace(/0+$/,'').replace(/\.$/,'');}
+  toast('Quantidade calculada e preenchida: '+qtd.toLocaleString('pt-BR',{maximumFractionDigits:4})+' folha(s)');
 }
 function toggleMatAvulso(){
   const box=document.getElementById('mp_avulsoBox');
@@ -2598,9 +2635,46 @@ async function drawEqPicker(){
     <div class="form-row" style="max-width:120px"><label id="ep_unitLabel">Minutos</label><input class="inp" type="number" step="0.01" id="ep_qtd" placeholder="0"></div>
     <div class="form-row" style="max-width:120px;display:none" id="ep_qtd2box"><label>Folhas/peças</label><input class="inp" type="number" id="ep_qtd2" placeholder="0"></div>
     <button class="btn-mini" onclick="addEqItem()">+ Adicionar</button>
+  </div>
+  <div style="margin-top:8px">
+    <span onclick="toggleEqRendCalc()" id="ep_rendToggle" style="font-size:12px;color:var(--text-3);cursor:pointer;text-decoration:underline;text-underline-offset:2px">🔢 saem várias cópias de uma vez? calcular automático</span>
+    <div id="ep_rendBox" style="display:none;margin-top:10px;padding:12px;background:var(--surface-2);border-radius:10px">
+      <p style="font-size:11.5px;color:var(--text-3);margin-bottom:8px">Ex: a máquina roda 4 minutos e saem 4 cópias de uma vez → o sistema calcula 1 minuto por cópia sozinho, no lugar da conta de cabeça.</p>
+      <div class="item-add-row">
+        <div class="form-row" style="max-width:110px"><label>Cópias que quero</label><input class="inp" type="number" step="0.01" id="ep_rendCopias" value="1" oninput="calcEqRendimento()"></div>
+        <div class="form-row" style="max-width:130px"><label>Saem juntas por vez</label><input class="inp" type="number" step="0.01" id="ep_rendPorVez" placeholder="Ex: 4" oninput="calcEqRendimento()"></div>
+        <div class="form-row"><label>Resultado</label><div class="calc-box" style="margin:0;padding:8px 10px"><div class="val" id="ep_rendResult" style="font-size:15px">—</div></div></div>
+        <button class="btn-mini" onclick="aplicarEqRendimento()">Usar</button>
+      </div>
+    </div>
   </div>`;
   await updateEqMode();
   drawEqSel();
+}
+function toggleEqRendCalc(){
+  const box=document.getElementById('ep_rendBox');
+  const aberto=box.style.display==='block';
+  box.style.display=aberto?'none':'block';
+  document.getElementById('ep_rendToggle').textContent=aberto?'🔢 saem várias cópias de uma vez? calcular automático':'🔢 fechar calculadora';
+  if(!aberto)calcEqRendimento();
+}
+function calcEqRendimento(){
+  const copias=parseFloat(document.getElementById('ep_rendCopias').value)||0;
+  const porVez=parseFloat(document.getElementById('ep_rendPorVez').value)||0;
+  const result=document.getElementById('ep_rendResult');
+  if(porVez<=0){result.textContent='—';return;}
+  const val=copias/porVez;
+  const unidade=document.getElementById('ep_unitLabel').textContent.toLowerCase();
+  result.textContent=val.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:4})+' '+unidade;
+}
+function aplicarEqRendimento(){
+  const copias=parseFloat(document.getElementById('ep_rendCopias').value)||0;
+  const porVez=parseFloat(document.getElementById('ep_rendPorVez').value)||0;
+  if(porVez<=0){toast('Informe quantas cópias saem juntas');return;}
+  const val=copias/porVez;
+  const qtdInput=document.getElementById('ep_qtd');
+  if(qtdInput){qtdInput.value=val.toFixed(4).replace(/0+$/,'').replace(/\.$/,'');}
+  toast('Quantidade calculada e preenchida');
 }
 async function updateEqMode(){
   const id=document.getElementById('ep_sel').value;
@@ -2684,6 +2758,17 @@ function drawAcabSel(){
 }
 
 /* ---------- Atualiza o resumo lateral ---------- */
+// Preço efetivo de 1 unidade: usa o "quanto você quer cobrar" se preenchido, senão o calculado
+function getPrecoEfetivo(){
+  const c=calcOrc(orc);
+  return (orc.precoManual&&orc.precoManual>0)?orc.precoManual:c.precoFinal;
+}
+function atualizaTotalQtd(){
+  const el=document.getElementById('qtdTotalPreview');if(!el)return;
+  const qtd=orc.cestaQtd&&orc.cestaQtd>0?orc.cestaQtd:1;
+  const total=qtd*getPrecoEfetivo();
+  el.innerHTML=qtd>1?`Total (${qtd} un): <b style="color:var(--brand)">${fmt(total)}</b>`:'';
+}
 function refreshSummary(){
   const box=document.getElementById('sumBody');if(!box)return;
   const c=calcOrc(orc);
@@ -2737,6 +2822,7 @@ function renderPrecoManualDerivados(){
   if(alertBox)alertBox.innerHTML=ehPrejuizo?`<div style="font-size:11.5px;color:#E5484D;background:rgba(229,72,77,.08);border-radius:8px;padding:8px 10px;margin-top:2px">⚠ Cobrando ${fmt(precoEfetivo)}, você perde ${fmt(Math.abs(lucroEfetivo))} nesse trabalho — está abaixo do seu custo.</div>`:'';
   const totalBlock=document.getElementById('o_totalBlock');
   if(totalBlock)totalBlock.innerHTML=`<span class="st-label">${temManual?'VOCÊ VAI COBRAR':'PREÇO FINAL'}</span><span class="st-val" style="${ehPrejuizo?'color:#E5484D':''}">${fmt(precoEfetivo)}</span>`;
+  atualizaTotalQtd();
 }
 function toggleArteProp(){
   orc.temArte=document.getElementById('o_temArte').checked;
@@ -3306,6 +3392,7 @@ async function renderTerceirizadoForm(){
           <input class="inp" type="number" min="1" style="width:80px" value="${orc.cestaQtd||1}" oninput="orc.cestaQtd=parseInt(this.value)||1;refreshSummaryT()">
           <span style="font-size:12px;color:var(--text-3)">unidade(s)</span>
         </div>
+        <div id="qtdTotalPreview" style="text-align:right;font-size:12.5px;color:var(--text-2);margin-top:8px"></div>
         ${editandoProdutoSalvoId?`
         <button class="btn-add" style="width:100%;margin-top:12px;justify-content:center" onclick="salvarEdicaoProdutoSalvo()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Salvar alterações no produto</button>
         <button class="btn-ghost" style="width:100%;margin-top:8px;justify-content:center;color:var(--text-3)" onclick="cancelarProduto()">Cancelar</button>
@@ -3351,6 +3438,7 @@ function refreshSummaryT(){
     <div class="sum-line"><span class="sl-label">${lucroLabel}</span><span class="sl-val" style="color:#1A8A4E">${fmt(c.lucro)}</span></div>
     <div class="sum-total"><span class="st-label">PREÇO FINAL</span><span class="st-val">${fmt(c.precoFinal)}</span></div>
     ${orc.prazoDias>0?`<div class="sum-margin">Prazo: ${orc.prazoDias} dia${orc.prazoDias!==1?'s':''}</div>`:''}`;
+  atualizaTotalQtd();
 }
 
 /* ============================================================
