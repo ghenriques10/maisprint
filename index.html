@@ -1930,7 +1930,7 @@ function resetOrc(){ orc=novoOrc(); }
 
 function novoOrc(){
   return {
-    clienteId:'', descricao:'', cestaQtd:1, categoria:'', precoManual:0,
+    clienteId:'', descricao:'', detalhes:'', cestaQtd:1, categoria:'', precoManual:0,
     materiais:[],   // {matId, nome, tipo, custoUnit, qtd}
     equipamentos:[],// {eqId, nome, tipo:'tempo'|'pb'|'cor', minutos, paginas, deprecHora, custoPB, custoCor}
     maoObraMin:0,   // minutos de trabalho manual
@@ -2294,7 +2294,8 @@ async function renderPricingForm(){
             </div>
           </div>
           <div class="form-grid">
-            <div class="form-row" style="grid-column:1/-1"><label>Descrição do trabalho *</label><input class="inp" id="o_desc" value="${esc(orc.descricao)}" placeholder="Ex: 100 cartões de visita coloridos" oninput="orc.descricao=this.value"></div>
+            <div class="form-row" style="grid-column:1/-1"><label>Nome do produto *</label><input class="inp" id="o_desc" value="${esc(orc.descricao)}" placeholder="Ex: Cartão de agradecimento" oninput="orc.descricao=this.value"></div>
+            <div class="form-row" style="grid-column:1/-1"><label>Detalhes para o cliente <span class="help">(opcional — tamanho, acabamento, papel... aparece menor, embaixo do nome)</span></label><textarea class="inp" id="o_detalhes" rows="2" placeholder="Ex: 10x10cm, frente e verso, papel 230g com brilho na frente" oninput="orc.detalhes=this.value">${esc(orc.detalhes||'')}</textarea></div>
           </div>
         </div>
 
@@ -3234,7 +3235,8 @@ async function renderTerceirizadoForm(){
             </div>
           </div>
           <div class="form-grid">
-            <div class="form-row" style="grid-column:1/-1"><label>Descrição do trabalho *</label><input class="inp" id="o_desc" value="${esc(orc.descricao)}" placeholder="Ex: 100 cartões de visita (gráfica online)" oninput="orc.descricao=this.value"></div>
+            <div class="form-row" style="grid-column:1/-1"><label>Nome do produto *</label><input class="inp" id="o_desc" value="${esc(orc.descricao)}" placeholder="Ex: Cartão de visita (gráfica online)" oninput="orc.descricao=this.value"></div>
+            <div class="form-row" style="grid-column:1/-1"><label>Detalhes para o cliente <span class="help">(opcional — tamanho, acabamento, papel... aparece menor, embaixo do nome)</span></label><textarea class="inp" id="o_detalhes" rows="2" placeholder="Ex: 10x10cm, frente e verso, papel 230g com brilho na frente" oninput="orc.detalhes=this.value">${esc(orc.detalhes||'')}</textarea></div>
           </div>
         </div>
 
@@ -4736,9 +4738,9 @@ async function pdfModal(orderId){
   // Itens iniciais: a descrição do trabalho como 1 item com o preço final
   // Se o orçamento tem vários produtos, lista todos; senão, um item só
   if(o.produtos&&o.produtos.length){
-    pdfItens=o.produtos.map(p=>({desc:(p.receita&&p.receita.descricao)||p.desc||'Produto',qtd:p.qtd||1,valor:p.precoUnit||0,foto:''}));
+    pdfItens=o.produtos.map(p=>({desc:(p.receita&&p.receita.descricao)||p.desc||'Produto',detalhes:(p.receita&&p.receita.detalhes)||'',qtd:p.qtd||1,valor:p.precoUnit||0,foto:''}));
   }else{
-    pdfItens=[{desc:o.descricao||'Serviço',qtd:1,valor:o.precoFinal||0,foto:''}];
+    pdfItens=[{desc:o.descricao||'Serviço',detalhes:o.detalhes||'',qtd:1,valor:o.precoFinal||0,foto:''}];
   }
   window._pdfOrder=o;window._pdfCli=cli;
   openModal(`
@@ -4774,7 +4776,8 @@ function drawPdfItens(){
         <div style="font-size:9.5px;color:var(--brand);margin-top:4px;cursor:pointer;font-weight:600" onclick="document.getElementById('pdfFotoInp_${i}').click()">${it.foto?'trocar':'+ foto'}</div>
       </div>
       <div style="flex:1;display:flex;flex-direction:column;gap:7px;min-width:0">
-        <input class="inp" value="${esc(it.desc)}" placeholder="Descrição" oninput="pdfItens[${i}].desc=this.value">
+        <input class="inp" value="${esc(it.desc)}" placeholder="Nome do produto" oninput="pdfItens[${i}].desc=this.value">
+        <input class="inp" value="${esc(it.detalhes||'')}" placeholder="Detalhes (opcional): tamanho, papel, acabamento..." style="font-size:12.5px" oninput="pdfItens[${i}].detalhes=this.value">
         <div style="display:flex;gap:8px;align-items:center">
           <input class="inp" type="number" value="${it.qtd}" oninput="pdfItens[${i}].qtd=parseFloat(this.value)||0;sumPdf()" style="width:64px" title="Qtd">
           <div class="inp-prefix" style="width:120px"><span>R$</span><input class="inp" type="number" step="0.01" value="${it.valor}" oninput="pdfItens[${i}].valor=parseFloat(this.value)||0;sumPdf()"></div>
@@ -4791,7 +4794,7 @@ function handlePdfItemFoto(ev,i){
     drawPdfItens();
   });
 }
-function addPdfItem(){pdfItens.push({desc:'',qtd:1,valor:0,foto:''});drawPdfItens();}
+function addPdfItem(){pdfItens.push({desc:'',detalhes:'',qtd:1,valor:0,foto:''});drawPdfItens();}
 function sumPdf(){const el=document.getElementById('pdfTotal');if(el)el.textContent=fmt(pdfItens.reduce((s,it)=>s+it.qtd*it.valor,0));}
 
 async function gerarPDF(){
@@ -4898,7 +4901,7 @@ async function gerarPDF(){
   doc.text('VALOR UN',COL_VAL,ty+17,{align:'right'});
   doc.text('TOTAL',COL_TOT,ty+17,{align:'right'});
 
-  // LINHAS — estilo "card" arredondado, com foto opcional por item
+  // LINHAS — estilo "card" arredondado, com foto opcional e nome+detalhes (como no catálogo)
   let ry=ty+26+6;
   const THUMB=36;
   pdfItens.forEach((it,i)=>{
@@ -4906,9 +4909,15 @@ async function gerarPDF(){
     const temFoto=!!it.foto;
     const textX = temFoto ? COL_DESC+THUMB+12 : COL_DESC;
     const textWidth = (temFoto ? 300-THUMB-12 : 300);
-    doc.setFont('helvetica','normal');doc.setFontSize(9.5);
-    const linhasDesc=doc.splitTextToSize(String(it.desc),textWidth);
-    const textH=12*linhasDesc.length+14;
+
+    doc.setFont('helvetica','bold');doc.setFontSize(9.5);
+    const linhasNome=doc.splitTextToSize(String(it.desc),textWidth);
+    doc.setFont('helvetica','normal');doc.setFontSize(8);
+    const linhasDetalhes=it.detalhes?doc.splitTextToSize(String(it.detalhes),textWidth):[];
+
+    const nomeH=12*linhasNome.length;
+    const detH=linhasDetalhes.length?(4+10*linhasDetalhes.length):0;
+    const textH=nomeH+detH+14;
     const altLinha=Math.max(temFoto?THUMB+16:28, textH);
 
     // controle de página (se não couber, começa página nova)
@@ -4921,12 +4930,19 @@ async function gerarPDF(){
     if(i%2===0){doc.setFillColor(...ZEBRA);doc.roundedRect(40,ry,W-80,altLinha,7,7,'F');}
     if(temFoto)imgCover(it.foto,COL_DESC,ry+(altLinha-THUMB)/2,THUMB,6);
 
-    // descrição multilinha (verticalmente centralizada na linha)
-    doc.setTextColor(...PRETO);doc.setFont('helvetica','normal');doc.setFontSize(9.5);
-    let tyD=ry+(altLinha-12*linhasDesc.length)/2+9;
-    linhasDesc.forEach(ln=>{doc.text(ln,textX,tyD);tyD+=12;});
+    // nome (negrito) + detalhes (cinza, menor) — bloco centralizado verticalmente na linha
+    const blocoH=nomeH+detH;
+    let tyD=ry+(altLinha-blocoH)/2+9;
+    doc.setTextColor(...PRETO);doc.setFont('helvetica','bold');doc.setFontSize(9.5);
+    linhasNome.forEach(ln=>{doc.text(ln,textX,tyD);tyD+=12;});
+    if(linhasDetalhes.length){
+      tyD+=2;
+      doc.setTextColor(...CINZA_TXT);doc.setFont('helvetica','normal');doc.setFontSize(8);
+      linhasDetalhes.forEach(ln=>{doc.text(ln,textX,tyD);tyD+=10;});
+    }
 
     const midY=ry+altLinha/2+3;
+    doc.setTextColor(...PRETO);
     doc.setFont('helvetica','normal');doc.setFontSize(9.5);
     doc.text(String(it.qtd),COL_QNT,midY,{align:'center'});
     doc.text(fmtMoeda(it.valor),COL_VAL,midY,{align:'right'});
