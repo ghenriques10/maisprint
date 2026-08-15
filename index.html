@@ -2469,7 +2469,15 @@ async function drawMatPicker(){
           <option value="m">m</option>
         </select>
       </div>
-      <div class="form-row" style="max-width:110px;display:none" id="mp_vernizAreaBox"><label>Área a cobrir (m²)</label><input class="inp" type="number" step="0.01" id="mp_vernizArea" placeholder="0" oninput="atualizaCalcVerniz()"></div>
+      <div class="form-row" style="max-width:80px;display:none" id="mp_vernizLargBox"><label>Largura</label><input class="inp" type="number" step="0.1" id="mp_vernizLarg" placeholder="0" oninput="atualizaCalcVerniz()"></div>
+      <div class="form-row" style="max-width:80px;display:none" id="mp_vernizAltBox"><label>Altura</label><input class="inp" type="number" step="0.1" id="mp_vernizAlt" placeholder="0" oninput="atualizaCalcVerniz()"></div>
+      <div class="form-row" style="max-width:85px;display:none" id="mp_vernizUnitBox"><label>Unidade</label>
+        <select class="inp" id="mp_vernizUnit" data-prev="mm" onchange="convertDimUnit('mp_vernizLarg','mp_vernizAlt','mp_vernizUnit');atualizaCalcVerniz()">
+          <option value="mm">mm</option>
+          <option value="cm">cm</option>
+          <option value="m">m</option>
+        </select>
+      </div>
       <div class="form-row" style="max-width:110px;display:none" id="mp_vernizDemaosBox"><label>Nº de demãos</label><input class="inp" type="number" step="0.5" id="mp_vernizDemaos" placeholder="Ex: 3" oninput="atualizaCalcVerniz()"></div>
       <button class="btn-mini" onclick="addMatItem()">+ Adicionar</button>
     </div>
@@ -2557,12 +2565,22 @@ function setMatAddMode(m){
   document.getElementById('mp_largBox').style.display=m==='area'?'block':'none';
   document.getElementById('mp_altBox').style.display=m==='area'?'block':'none';
   document.getElementById('mp_unitBox').style.display=m==='area'?'block':'none';
-  document.getElementById('mp_vernizAreaBox').style.display=m==='verniz'?'block':'none';
+  document.getElementById('mp_vernizLargBox').style.display=m==='verniz'?'block':'none';
+  document.getElementById('mp_vernizAltBox').style.display=m==='verniz'?'block':'none';
+  document.getElementById('mp_vernizUnitBox').style.display=m==='verniz'?'block':'none';
   document.getElementById('mp_vernizDemaosBox').style.display=m==='verniz'?'block':'none';
   atualizaCalcArea();
   atualizaCalcVerniz();
 }
 function onMatSelChange(){ atualizaCalcArea(); atualizaCalcVerniz(); }
+// Calcula a área (m²) a peça a envernizar, a partir de largura x altura na unidade escolhida
+function calcAreaVernizM2(){
+  const larg=num('mp_vernizLarg'), alt=num('mp_vernizAlt');
+  const unit=document.getElementById('mp_vernizUnit')?document.getElementById('mp_vernizUnit').value:'mm';
+  const fator=FATOR_PARA_CM[unit]||1; // converte para cm
+  const largCm=larg*fator, altCm=alt*fator;
+  return (largCm*altCm)/10000; // cm² -> m²
+}
 function atualizaCalcVerniz(){
   const info=document.getElementById('mp_vernizInfo');if(!info)return;
   if(matAddMode!=='verniz'){info.textContent='';return;}
@@ -2573,13 +2591,13 @@ function atualizaCalcVerniz(){
     info.innerHTML=`<span style="color:#E5484D">Este material não tem rendimento cadastrado. Edite-o em Materiais e informe a área e o nº de demãos que rende.</span>`;
     return;
   }
-  const area=num('mp_vernizArea'), demaos=num('mp_vernizDemaos');
+  const area=calcAreaVernizM2(), demaos=num('mp_vernizDemaos');
   if(area<=0||demaos<=0){info.textContent=`Rende ${m.rendArea}m² com ${m.rendDemaos} demão(s) por embalagem.`;return;}
   const unidadesNecessarias=area*demaos; // m²·demão
   const capacidadeEmbalagem=m.rendArea*m.rendDemaos;
   const fracao=unidadesNecessarias/capacidadeEmbalagem;
   const custo=unidadesNecessarias*m.custoUnit;
-  info.innerHTML=`${area}m² × ${demaos} demão(s) = ${(fracao*100).toFixed(1)}% da embalagem — <b style="color:var(--brand)">${fmt(custo)}</b>`;
+  info.innerHTML=`Peça = ${area.toLocaleString('pt-BR',{maximumFractionDigits:5})}m² × ${demaos} demão(s) = ${(fracao*100).toFixed(2)}% da embalagem — <b style="color:var(--brand)">${fmt(custo)}</b>`;
 }
 function atualizaCalcArea(){
   const info=document.getElementById('mp_areaInfo');if(!info)return;
@@ -2643,11 +2661,16 @@ async function addMatItem(){
     document.getElementById('mp_areaInfo').textContent='';
   }else if(matAddMode==='verniz'){
     if(!m.rendArea||!m.rendDemaos){toast('Este material não tem rendimento cadastrado. Edite-o em Materiais.');return;}
-    const area=num('mp_vernizArea'), demaos=num('mp_vernizDemaos');
-    if(area<=0||demaos<=0){toast('Informe a área a cobrir e o número de demãos');return;}
+    const largV=num('mp_vernizLarg'), altV=num('mp_vernizAlt');
+    const demaos=num('mp_vernizDemaos');
+    if(largV<=0||altV<=0){toast('Informe a largura e a altura da peça');return;}
+    if(demaos<=0){toast('Informe o número de demãos');return;}
+    const area=calcAreaVernizM2();
+    const unit=document.getElementById('mp_vernizUnit')?document.getElementById('mp_vernizUnit').value:'mm';
     const unidadesNecessarias=area*demaos; // m²·demão
-    orc.materiais.push({matId:m.id,nome:`${m.nome} (${area}m² × ${demaos} demão${demaos!==1?'s':''})`,tipo:m.tipo,custoUnit:m.custoUnit,qtd:unidadesNecessarias,estoque:m.estoque||0,estoqueMin:m.estoqueMin||0});
-    document.getElementById('mp_vernizArea').value='';
+    orc.materiais.push({matId:m.id,nome:`${m.nome} (peça ${largV}×${altV}${unit}, ${demaos} demão${demaos!==1?'s':''})`,tipo:m.tipo,custoUnit:m.custoUnit,qtd:unidadesNecessarias,estoque:m.estoque||0,estoqueMin:m.estoqueMin||0});
+    document.getElementById('mp_vernizLarg').value='';
+    document.getElementById('mp_vernizAlt').value='';
     document.getElementById('mp_vernizDemaos').value='';
     document.getElementById('mp_vernizInfo').textContent='';
   }else{
