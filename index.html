@@ -2634,8 +2634,15 @@ async function drawEqPicker(){
     <div class="form-row" style="max-width:160px"><label>Cobrar por</label><select class="inp" id="ep_modo" onchange="updateEqUnit()"></select></div>
     <div class="form-row" style="max-width:120px"><label id="ep_unitLabel">Minutos</label><input class="inp" type="number" step="0.01" id="ep_qtd" placeholder="0"></div>
     <div class="form-row" style="max-width:120px;display:none" id="ep_qtd2box"><label>Folhas/peças</label><input class="inp" type="number" id="ep_qtd2" placeholder="0"></div>
+    <div class="form-row" id="ep_fvBox" style="display:none;max-width:140px">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin-top:9px;font-size:12.5px;color:var(--text-2);font-weight:500">
+        <input type="checkbox" id="ep_frenteVerso" style="width:16px;height:16px;accent-color:var(--brand)" onchange="atualizaFvInfo()">
+        Frente e verso
+      </label>
+    </div>
     <button class="btn-mini" onclick="addEqItem()">+ Adicionar</button>
   </div>
+  <div id="ep_fvInfo" style="font-size:11.5px;color:var(--text-3);margin-top:4px"></div>
   <div style="margin-top:8px">
     <span onclick="toggleEqRendCalc()" id="ep_rendToggle" style="font-size:12px;color:var(--text-3);cursor:pointer;text-decoration:underline;text-underline-offset:2px">🔢 saem várias cópias de uma vez? calcular automático</span>
     <div id="ep_rendBox" style="display:none;margin-top:10px;padding:12px;background:var(--surface-2);border-radius:10px">
@@ -2690,13 +2697,23 @@ function updateEqUnit(){
   const modo=document.getElementById('ep_modo').value;
   const lbl=document.getElementById('ep_unitLabel');
   const box2=document.getElementById('ep_qtd2box');
+  const fvBox=document.getElementById('ep_fvBox');
   if(modo==='recorte'){
     lbl.textContent='Minutos de uso';
     if(box2)box2.style.display='block';
+    if(fvBox)fvBox.style.display='none';
   }else{
     lbl.textContent = modo==='tempo'?'Minutos':'Páginas';
     if(box2)box2.style.display='none';
+    if(fvBox)fvBox.style.display=(modo==='pb'||modo==='cor')?'block':'none';
   }
+  const cb=document.getElementById('ep_frenteVerso'); if(cb)cb.checked=false;
+  atualizaFvInfo();
+}
+function atualizaFvInfo(){
+  const info=document.getElementById('ep_fvInfo');if(!info)return;
+  const cb=document.getElementById('ep_frenteVerso');
+  info.textContent=(cb&&cb.checked)?'Vai contar tinta e desgaste dos dois lados (o dobro de páginas), mas o papel continua sendo cobrado 1x no passo de materiais.':'';
 }
 async function addEqItem(){
   const id=document.getElementById('ep_sel').value;
@@ -2710,11 +2727,19 @@ async function addEqItem(){
     item.minutos=qtd; item.folhas=folhas;
   }else{
     if(qtd<=0){toast('Informe a quantidade');return;}
-    if(modo==='tempo')item.minutos=qtd; else item.paginas=qtd;
+    if(modo==='tempo'){
+      item.minutos=qtd;
+    }else{
+      const frenteVerso=document.getElementById('ep_frenteVerso')?.checked;
+      item.paginas=frenteVerso?qtd*2:qtd;
+      item.frenteVerso=!!frenteVerso;
+    }
   }
   orc.equipamentos.push(item);
   document.getElementById('ep_qtd').value='';
   const q2=document.getElementById('ep_qtd2');if(q2)q2.value='';
+  const cb=document.getElementById('ep_frenteVerso');if(cb)cb.checked=false;
+  atualizaFvInfo();
   drawEqSel();refreshSummary();
 }
 function drawEqSel(){
@@ -2723,14 +2748,14 @@ function drawEqSel(){
   box.innerHTML=orc.equipamentos.map((e,i)=>{
     let sub=0,detail='';
     if(e.tipo==='tempo'){sub=e.deprecHora*(e.minutos/60);detail=`${e.minutos} min × ${fmt6(e.deprecHora)}/h (depreciação)`;}
-    else if(e.tipo==='pb'){sub=e.custoPB*e.paginas;detail=`${e.paginas} pág. P&B × ${fmt6(e.custoPB)}`;}
+    else if(e.tipo==='pb'){sub=e.custoPB*e.paginas;detail=`${e.paginas} pág. P&B × ${fmt6(e.custoPB)}${e.frenteVerso?' (frente e verso)':''}`;}
     else if(e.tipo==='recorte'){
       const cLamina=(e.custoLaminaHora||0)*((e.minutos||0)/60);
       const cBase=(e.custoBaseFolha||0)*(e.folhas||0);
       sub=cLamina+cBase;
       detail=`${e.minutos||0} min consumível 1 + ${e.folhas||0} folhas/peças consumível 2`;
     }
-    else{sub=e.custoCor*e.paginas;detail=`${e.paginas} pág. cor × ${fmt6(e.custoCor)}`;}
+    else{sub=e.custoCor*e.paginas;detail=`${e.paginas} pág. cor × ${fmt6(e.custoCor)}${e.frenteVerso?' (frente e verso)':''}`;}
     return `<div class="sel-item">
       <div class="si-info"><div class="si-name">${esc(e.nome)}</div><div class="si-detail">${detail}</div></div>
       <div class="si-val">${fmt(sub)}</div>
