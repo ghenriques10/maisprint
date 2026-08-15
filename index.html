@@ -1407,6 +1407,7 @@ const MAT_TIPOS={
   folha:{label:'Por folha / unidade',desc:'Papel, adesivo em folha. Compra em pacote, usa por folha.',compraLabel:'Itens no pacote',usoLabel:'folha'},
   metro:{label:'Por metro linear',desc:'BOPP, vinil, lona em bobina. Compra a bobina, usa em metros.',compraLabel:'Metros na bobina',usoLabel:'metro'},
   peca:{label:'Por peça avulsa',desc:'Caneca, chaveiro, botton. Compra e usa por unidade.',compraLabel:'Peças compradas',usoLabel:'peça'},
+  verniz:{label:'Verniz / tinta (rendimento)',desc:'Galão ou pote que rende X m² com um nº de demãos. Ex: verniz, tinta de textura.',compraLabel:'Rendimento',usoLabel:'m²·demão'},
   avulso:{label:'Item avulso (ainda não comprado)',desc:'',compraLabel:'',usoLabel:'un'},
 };
 async function renderMaterialsPage(main){
@@ -1516,6 +1517,9 @@ async function openMaterialModal(id){
   suppliers.sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
   const supOpts=`<option value="">— Nenhum / não informar —</option>`+suppliers.map(s=>`<option value="${s.id}" ${m.fornecedorId===s.id?'selected':''}>${esc(s.nome)}</option>`).join('');
   const catOpts=`<option value="">— Sem categoria —</option>`+(CONFIG.catServicos||[]).map(c=>`<option ${m.categoria===c?'selected':''}>${esc(c)}</option>`).join('');
+  const dimFator=FATOR_PARA_CM[m.dimUnit||'cm']||1;
+  const largDisplay=m.largura?(m.largura/dimFator).toFixed(3).replace(/0+$/,'').replace(/\.$/,''):'';
+  const altDisplay=m.altura?(m.altura/dimFator).toFixed(3).replace(/0+$/,'').replace(/\.$/,''):'';
   openModal(`
     <div class="modal-head">
       <h3>${id?'Editar':'Novo'} material</h3>
@@ -1535,7 +1539,7 @@ async function openMaterialModal(id){
       </div>
       <label style="display:flex;align-items:center;gap:9px;cursor:pointer;margin:16px 0 6px">
         <input type="checkbox" id="m_temDim" ${m.largura?'checked':''} onchange="toggleDimPlaca()" style="width:17px;height:17px;accent-color:var(--brand)">
-        <span style="font-size:13.5px;font-weight:500">Sei o tamanho desta chapa/placa (para cortar por área, ex: laser)</span>
+        <span style="font-size:13.5px;font-weight:500">Sei o tamanho desta chapa/placa/rolo (para cobrar por área, ex: laser, BOPP, lona)</span>
       </label>
       <div id="m_dimBox" style="display:${m.largura?'block':'none'}">
         <p style="font-size:12.5px;color:var(--text-3);margin:6px 0 12px">Com o tamanho da chapa, na precificação você informa só a largura x altura da peça e o sistema calcula a fatia certa do custo — sem precisar chutar.</p>
@@ -1544,11 +1548,12 @@ async function openMaterialModal(id){
           <select class="inp" id="m_dimUnit" data-prev="${m.dimUnit||'cm'}" onchange="convertDimUnit('m_largura','m_altura','m_dimUnit')">
             <option value="cm" ${(m.dimUnit||'cm')==='cm'?'selected':''}>Centímetros (cm)</option>
             <option value="mm" ${m.dimUnit==='mm'?'selected':''}>Milímetros (mm)</option>
+            <option value="m" ${m.dimUnit==='m'?'selected':''}>Metros (m)</option>
           </select>
         </div>
         <div class="form-grid">
-          <div class="form-row"><label>Largura da chapa</label><input class="inp" type="number" step="0.1" id="m_largura" value="${m.dimUnit==='mm'?(m.largura?(m.largura*10).toFixed(1):''):(m.largura||'')}" placeholder="Ex: 30"></div>
-          <div class="form-row"><label>Altura da chapa</label><input class="inp" type="number" step="0.1" id="m_altura" value="${m.dimUnit==='mm'?(m.altura?(m.altura*10).toFixed(1):''):(m.altura||'')}" placeholder="Ex: 20"></div>
+          <div class="form-row"><label>Largura da chapa</label><input class="inp" type="number" step="0.1" id="m_largura" value="${largDisplay}" placeholder="Ex: 30"></div>
+          <div class="form-row"><label>Altura da chapa</label><input class="inp" type="number" step="0.1" id="m_altura" value="${altDisplay}" placeholder="Ex: 20"></div>
         </div>
       </div>
       <div class="modal-section-label">Como esse material é cobrado?</div>
@@ -1562,7 +1567,14 @@ async function openMaterialModal(id){
       <div class="modal-section-label">Valores de compra</div>
       <div class="form-grid">
         <div class="form-row"><label>Valor pago na compra *</label><div class="inp-prefix"><span>R$</span><input class="inp" type="number" step="0.01" id="m_valor" value="${m.valorCompra||''}" placeholder="0,00" oninput="recalcMat()"></div></div>
-        <div class="form-row"><label id="m_qtdLabel">${MAT_TIPOS[matTipo].compraLabel} *</label><input class="inp" type="number" step="0.01" id="m_qtd" value="${m.qtdCompra||''}" placeholder="0" oninput="recalcMat()"></div>
+        <div class="form-row" id="m_qtdNormalBox" style="display:${matTipo==='verniz'?'none':'block'}"><label id="m_qtdLabel">${MAT_TIPOS[matTipo].compraLabel} *</label><input class="inp" type="number" step="0.01" id="m_qtd" value="${m.qtdCompra||''}" placeholder="0" oninput="recalcMat()"></div>
+      </div>
+      <div id="m_vernizBox" style="display:${matTipo==='verniz'?'block':'none'};margin-top:10px">
+        <p style="font-size:12.5px;color:var(--text-3);margin-bottom:10px">Copia da embalagem: "3 demãos, rende 1m² por galão". Preenche esses dois números — na precificação você escolhe quantas demãos vai dar de verdade em cada trabalho.</p>
+        <div class="form-grid">
+          <div class="form-row"><label>Rende quantos m² <span class="help">(nessa embalagem toda)</span></label><input class="inp" type="number" step="0.01" id="m_vernizArea" value="${m.rendArea||''}" placeholder="Ex: 1" oninput="calcVernizQtd()"></div>
+          <div class="form-row"><label>Com quantas demãos <span class="help">(padrão da embalagem)</span></label><input class="inp" type="number" step="0.5" id="m_vernizDemaos" value="${m.rendDemaos||''}" placeholder="Ex: 3" oninput="calcVernizQtd()"></div>
+        </div>
       </div>
       <div class="calc-box" style="margin-top:16px">
         <div class="label">Custo por <span id="m_usoLabel">${MAT_TIPOS[matTipo].usoLabel}</span> (calculado automaticamente)</div>
@@ -1579,13 +1591,24 @@ async function openMaterialModal(id){
       <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
       <button class="btn-save" onclick="saveMaterial()">Salvar material</button>
     </div>`);
-  setTimeout(()=>{document.getElementById('m_nome').focus();recalcMat();},100);
+  setTimeout(()=>{document.getElementById('m_nome').focus(); matTipo==='verniz'?calcVernizQtd():recalcMat();},100);
 }
 function selMatTipo(k){
   matTipo=k;
   document.querySelectorAll('#m_tipoGrid .radio-opt').forEach(o=>o.classList.toggle('sel',o.dataset.tipo===k));
   document.getElementById('m_qtdLabel').textContent=MAT_TIPOS[k].compraLabel+' *';
   document.getElementById('m_usoLabel').textContent=MAT_TIPOS[k].usoLabel;
+  const ehVerniz=k==='verniz';
+  document.getElementById('m_qtdNormalBox').style.display=ehVerniz?'none':'block';
+  document.getElementById('m_vernizBox').style.display=ehVerniz?'block':'none';
+  if(ehVerniz)calcVernizQtd(); else recalcMat();
+}
+// Verniz/tinta: calcula a "quantidade" internamente como área × demãos (m²·demão),
+// reaproveitando o mesmo cálculo de custo unitário do resto do sistema
+function calcVernizQtd(){
+  const area=num('m_vernizArea'), demaos=num('m_vernizDemaos');
+  const qtdInput=document.getElementById('m_qtd');
+  if(qtdInput)qtdInput.value=(area*demaos)||'';
   recalcMat();
 }
 function recalcMat(){
@@ -1596,15 +1619,16 @@ function recalcMat(){
   document.getElementById('m_calcNote').textContent=valor>0&&qtd>0?`${fmt(valor)} ÷ ${qtd} ${t.usoLabel}${qtd>1?'s':''} = ${fmt6(custo)} por ${t.usoLabel}`:'Preencha o valor e a quantidade.';
 }
 // Converte os valores digitados quando o usuário troca a unidade (cm <-> mm), sem perder o número
+const FATOR_PARA_CM={mm:0.1,cm:1,m:100};
 function convertDimUnit(idLarg,idAlt,idUnit){
   const sel=document.getElementById(idUnit);
   const prev=sel.dataset.prev||'cm';
   const novo=sel.value;
   if(prev===novo)return;
-  const fator = (prev==='cm'&&novo==='mm') ? 10 : (prev==='mm'&&novo==='cm') ? 0.1 : 1;
+  const fator=(FATOR_PARA_CM[prev]||1)/(FATOR_PARA_CM[novo]||1);
   [idLarg,idAlt].forEach(id=>{
     const inp=document.getElementById(id);
-    if(inp&&inp.value){ inp.value=(parseFloat(inp.value)*fator).toFixed(2).replace(/\.00$/,''); }
+    if(inp&&inp.value){ inp.value=(parseFloat(inp.value)*fator).toFixed(3).replace(/0+$/,'').replace(/\.$/,''); }
   });
   sel.dataset.prev=novo;
   if(typeof atualizaCalcArea==='function')atualizaCalcArea();
@@ -1619,9 +1643,10 @@ async function saveMaterial(){
   const sel=document.getElementById('m_forn');
   const temDim=document.getElementById('m_temDim').checked;
   const dimUnit=document.getElementById('m_dimUnit')?document.getElementById('m_dimUnit').value:'cm';
-  const fatorParaCm=dimUnit==='mm'?0.1:1;
+  const fatorParaCm=FATOR_PARA_CM[dimUnit]||1;
   await dbPut('materials',{id,nome,marca:val('m_marca'),fornecedorId:sel?sel.value:'',categoria:val('m_categoria'),tipo:matTipo,
     valorCompra:valor,qtdCompra:qtd,custoUnit,
+    rendArea:matTipo==='verniz'?num('m_vernizArea'):0, rendDemaos:matTipo==='verniz'?num('m_vernizDemaos'):0,
     largura:temDim?num('m_largura')*fatorParaCm:0, altura:temDim?num('m_altura')*fatorParaCm:0, dimUnit:temDim?dimUnit:'cm',
     estoque:num('m_estoqueAtual'),estoqueMin:num('m_estoqueMin')});
   closeModal();toast('Material salvo');drawMaterials();
@@ -2421,12 +2446,15 @@ async function drawMatPicker(){
   matAddMode='qtd';
   const pickerNormal = mats.length===0 ? `<p style="color:var(--text-3);font-size:13px">Nenhum material cadastrado ainda. Vá em Materiais para cadastrar, ou use o campo de material avulso abaixo.</p>` : `
     <div class="form-row"><label>Buscar material</label><input class="inp" id="mp_busca" placeholder="Digite para filtrar..." oninput="filtrarMatSelect()"></div>
-    <div class="radio-grid" style="grid-template-columns:1fr 1fr;margin:6px 0 12px">
+    <div class="radio-grid" style="grid-template-columns:1fr 1fr 1fr;margin:6px 0 12px">
       <div class="radio-opt sel" id="mp_modoQtd" onclick="setMatAddMode('qtd')">
         <div class="ro-title">Por quantidade</div><div class="ro-desc">Folhas, unidades, metros...</div>
       </div>
       <div class="radio-opt" id="mp_modoArea" onclick="setMatAddMode('area')">
         <div class="ro-title">Por área (retalho de chapa)</div><div class="ro-desc">Digite largura x altura da peça — ex: laser</div>
+      </div>
+      <div class="radio-opt" id="mp_modoVerniz" onclick="setMatAddMode('verniz')">
+        <div class="ro-title">Verniz / tinta (demãos)</div><div class="ro-desc">Área a cobrir + nº de demãos</div>
       </div>
     </div>
     <div class="item-add-row">
@@ -2438,11 +2466,15 @@ async function drawMatPicker(){
         <select class="inp" id="mp_unit" data-prev="cm" onchange="convertDimUnit('mp_larg','mp_alt','mp_unit')">
           <option value="cm">cm</option>
           <option value="mm">mm</option>
+          <option value="m">m</option>
         </select>
       </div>
+      <div class="form-row" style="max-width:110px;display:none" id="mp_vernizAreaBox"><label>Área a cobrir (m²)</label><input class="inp" type="number" step="0.01" id="mp_vernizArea" placeholder="0" oninput="atualizaCalcVerniz()"></div>
+      <div class="form-row" style="max-width:110px;display:none" id="mp_vernizDemaosBox"><label>Nº de demãos</label><input class="inp" type="number" step="0.5" id="mp_vernizDemaos" placeholder="Ex: 3" oninput="atualizaCalcVerniz()"></div>
       <button class="btn-mini" onclick="addMatItem()">+ Adicionar</button>
     </div>
     <div id="mp_areaInfo" style="font-size:12px;color:var(--text-3);margin-top:4px"></div>
+    <div id="mp_vernizInfo" style="font-size:12px;color:var(--text-3);margin-top:4px"></div>
     <div style="margin-top:8px">
       <span onclick="toggleRendCalc()" id="mp_rendToggle" style="font-size:12px;color:var(--text-3);cursor:pointer;text-decoration:underline;text-underline-offset:2px">🔢 cabem várias cópias na mesma folha? calcular automático</span>
       <div id="mp_rendBox" style="display:none;margin-top:10px;padding:12px;background:var(--surface-2);border-radius:10px">
@@ -2520,13 +2552,35 @@ function setMatAddMode(m){
   matAddMode=m;
   document.getElementById('mp_modoQtd').classList.toggle('sel',m==='qtd');
   document.getElementById('mp_modoArea').classList.toggle('sel',m==='area');
+  document.getElementById('mp_modoVerniz').classList.toggle('sel',m==='verniz');
   document.getElementById('mp_qtdBox').style.display=m==='qtd'?'block':'none';
   document.getElementById('mp_largBox').style.display=m==='area'?'block':'none';
   document.getElementById('mp_altBox').style.display=m==='area'?'block':'none';
   document.getElementById('mp_unitBox').style.display=m==='area'?'block':'none';
+  document.getElementById('mp_vernizAreaBox').style.display=m==='verniz'?'block':'none';
+  document.getElementById('mp_vernizDemaosBox').style.display=m==='verniz'?'block':'none';
   atualizaCalcArea();
+  atualizaCalcVerniz();
 }
-function onMatSelChange(){ atualizaCalcArea(); }
+function onMatSelChange(){ atualizaCalcArea(); atualizaCalcVerniz(); }
+function atualizaCalcVerniz(){
+  const info=document.getElementById('mp_vernizInfo');if(!info)return;
+  if(matAddMode!=='verniz'){info.textContent='';return;}
+  const sel=document.getElementById('mp_sel');
+  const m=(window._matsCache||[]).find(x=>x.id===sel?.value);
+  if(!m){info.textContent='';return;}
+  if(!m.rendArea||!m.rendDemaos){
+    info.innerHTML=`<span style="color:#E5484D">Este material não tem rendimento cadastrado. Edite-o em Materiais e informe a área e o nº de demãos que rende.</span>`;
+    return;
+  }
+  const area=num('mp_vernizArea'), demaos=num('mp_vernizDemaos');
+  if(area<=0||demaos<=0){info.textContent=`Rende ${m.rendArea}m² com ${m.rendDemaos} demão(s) por embalagem.`;return;}
+  const unidadesNecessarias=area*demaos; // m²·demão
+  const capacidadeEmbalagem=m.rendArea*m.rendDemaos;
+  const fracao=unidadesNecessarias/capacidadeEmbalagem;
+  const custo=unidadesNecessarias*m.custoUnit;
+  info.innerHTML=`${area}m² × ${demaos} demão(s) = ${(fracao*100).toFixed(1)}% da embalagem — <b style="color:var(--brand)">${fmt(custo)}</b>`;
+}
 function atualizaCalcArea(){
   const info=document.getElementById('mp_areaInfo');if(!info)return;
   if(matAddMode!=='area'){info.textContent='';return;}
@@ -2540,7 +2594,7 @@ function atualizaCalcArea(){
   const largPeca=num('mp_larg'), altPeca=num('mp_alt');
   if(largPeca<=0||altPeca<=0){info.textContent=`Chapa: ${m.largura}×${m.altura}cm`;return;}
   const unit=document.getElementById('mp_unit')?document.getElementById('mp_unit').value:'cm';
-  const fator=unit==='mm'?0.1:1;
+  const fator=FATOR_PARA_CM[unit]||1;
   const largPecaCm=largPeca*fator, altPecaCm=altPeca*fator;
   const areaChapa=m.largura*m.altura, areaPeca=largPecaCm*altPecaCm;
   const fracao=areaPeca/areaChapa;
@@ -2580,13 +2634,22 @@ async function addMatItem(){
     const largPeca=num('mp_larg'), altPeca=num('mp_alt');
     if(largPeca<=0||altPeca<=0){toast('Informe a largura e a altura da peça');return;}
     const unit=document.getElementById('mp_unit')?document.getElementById('mp_unit').value:'cm';
-    const fator=unit==='mm'?0.1:1;
+    const fator=FATOR_PARA_CM[unit]||1;
     const areaChapa=m.largura*m.altura, areaPeca=(largPeca*fator)*(altPeca*fator);
     const fracao=areaPeca/areaChapa;
     orc.materiais.push({matId:m.id,nome:`${m.nome} (peça ${largPeca}×${altPeca}${unit})`,tipo:m.tipo,custoUnit:m.custoUnit,qtd:fracao,estoque:m.estoque||0,estoqueMin:m.estoqueMin||0});
     document.getElementById('mp_larg').value='';
     document.getElementById('mp_alt').value='';
     document.getElementById('mp_areaInfo').textContent='';
+  }else if(matAddMode==='verniz'){
+    if(!m.rendArea||!m.rendDemaos){toast('Este material não tem rendimento cadastrado. Edite-o em Materiais.');return;}
+    const area=num('mp_vernizArea'), demaos=num('mp_vernizDemaos');
+    if(area<=0||demaos<=0){toast('Informe a área a cobrir e o número de demãos');return;}
+    const unidadesNecessarias=area*demaos; // m²·demão
+    orc.materiais.push({matId:m.id,nome:`${m.nome} (${area}m² × ${demaos} demão${demaos!==1?'s':''})`,tipo:m.tipo,custoUnit:m.custoUnit,qtd:unidadesNecessarias,estoque:m.estoque||0,estoqueMin:m.estoqueMin||0});
+    document.getElementById('mp_vernizArea').value='';
+    document.getElementById('mp_vernizDemaos').value='';
+    document.getElementById('mp_vernizInfo').textContent='';
   }else{
     const qtd=num('mp_qtd');
     if(qtd<=0){toast('Informe a quantidade');return;}
