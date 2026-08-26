@@ -184,6 +184,8 @@ input,select,textarea{font-family:inherit;font-size:14px}
 }
 .icon-btn svg{width:17px;height:17px;stroke:currentColor;flex-shrink:0}
 .icon-btn:hover{background:var(--surface-3);color:var(--text)}
+.icon-btn.syncing svg{animation:spin .8s linear infinite}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 
 .mobile-menu-btn{
   display:none;position:fixed;top:14px;left:14px;z-index:50;
@@ -603,6 +605,10 @@ tbody tr:hover{background:var(--surface-2)}
     </div>
     <nav class="nav" id="nav"></nav>
     <div class="sidebar-foot">
+      <button class="icon-btn" id="syncBtn" onclick="sincronizarManual()" title="Buscar dados atualizados da nuvem">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        <span>Sincronizar</span>
+      </button>
       <button class="icon-btn" onclick="toggleTheme()" id="themeBtn" title="Alternar tema">
         <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
         <span>Tema</span>
@@ -706,6 +712,24 @@ function openDB(){
       });
       return true;
     });
+}
+// Sincronização manual: apaga o cache local e busca tudo de novo da nuvem.
+// Use quando desconfiar que algo não atualizou sozinho (ex: editou em outro aparelho).
+async function sincronizarManual(){
+  const btn=document.getElementById('syncBtn');
+  if(btn)btn.classList.add('syncing');
+  try{
+    Object.keys(_cache).forEach(k=>delete _cache[k]);
+    await openDB();
+    CONFIG=await dbGet('config','main');
+    buildNav();
+    renderPage(currentTab||'dashboard');
+    toast('Sincronizado com a nuvem!');
+  }catch(err){
+    toast('Não consegui sincronizar — verifique sua internet');
+  }finally{
+    if(btn)btn.classList.remove('syncing');
+  }
 }
 
 async function dbPut(store,obj){
@@ -1830,13 +1854,20 @@ async function openEquipModal(id){
           <div class="calc-box" style="flex:1;min-width:160px;margin:0">
             <div class="label">Custo de tinta — P&B</div>
             <div class="val" id="e_custoPB" style="font-size:21px">${fmt6(e.custoPB)}</div>
-            <div class="note">por página</div>
+            <div class="note">por página, qualidade normal</div>
           </div>
           <div class="calc-box" style="flex:1;min-width:160px;margin:0">
             <div class="label">Custo de tinta — Colorido</div>
             <div class="val" id="e_custoCor" style="font-size:21px">${fmt6(e.custoCor)}</div>
-            <div class="note">por página</div>
+            <div class="note">por página, qualidade normal</div>
           </div>
+        </div>
+        <div class="modal-section-label" style="margin-top:16px">Qualidade de impressão <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-3)">(o quanto cada nível gasta a mais/menos de tinta)</span></div>
+        <p style="font-size:12px;color:var(--text-3);margin-bottom:10px">"Normal" é sempre 100% (o custo calculado acima). Ajuste os outros conforme sua impressora — são só uma estimativa pra começar.</p>
+        <div class="form-grid">
+          <div class="form-row"><label>Economia % <span class="help">(gasta menos tinta)</span></label><input class="inp" type="number" step="1" id="e_qualEconomia" value="${e.qualEconomiaPct||70}" placeholder="70" oninput="recalcEquip()"></div>
+          <div class="form-row"><label>Alta qualidade %</label><input class="inp" type="number" step="1" id="e_qualAlta" value="${e.qualAltaPct||140}" placeholder="140" oninput="recalcEquip()"></div>
+          <div class="form-row"><label>Melhor qualidade %</label><input class="inp" type="number" step="1" id="e_qualMelhor" value="${e.qualMelhorPct||180}" placeholder="180" oninput="recalcEquip()"></div>
         </div>
       </div>
 
@@ -1936,6 +1967,7 @@ async function saveEquip(){
   const id=val('e_id')||uid();
   await dbPut('equipment',{id,nome,valorAquis:aquis,valorRevenda:revenda,deprecMode:equipDeprecMode,anos,diasAno,horasDia,horasTotais,deprecHora,
     temTinta,refilPB:num('e_refilPB'),rendPB:num('e_rendPB'),refilCor:num('e_refilCor'),rendCor:num('e_rendCor'),custoPB,custoCor,
+    qualEconomiaPct:num('e_qualEconomia')||70,qualAltaPct:num('e_qualAlta')||140,qualMelhorPct:num('e_qualMelhor')||180,
     temRecorte,laminaCusto:num('e_laminaCusto'),laminaVida:num('e_laminaVida'),baseCusto:num('e_baseCusto'),baseVida:num('e_baseVida'),custoLaminaHora,custoBaseFolha});
   closeModal();toast('Equipamento salvo');drawEquip();
 }
@@ -2720,6 +2752,12 @@ async function drawEqPicker(){
     <div class="form-row" style="max-width:160px"><label>Cobrar por</label><select class="inp" id="ep_modo" onchange="updateEqUnit()"></select></div>
     <div class="form-row" style="max-width:120px"><label id="ep_unitLabel">Minutos</label><input class="inp" type="number" step="0.01" id="ep_qtd" placeholder="0"></div>
     <div class="form-row" style="max-width:120px;display:none" id="ep_qtd2box"><label>Folhas/peças</label><input class="inp" type="number" id="ep_qtd2" placeholder="0"></div>
+    <div class="form-row" id="ep_qualBox" style="display:none;max-width:130px"><label>Qualidade</label><select class="inp" id="ep_qualidade" onchange="atualizaFvInfo()">
+      <option value="normal">Normal</option>
+      <option value="economia">Economia</option>
+      <option value="alta">Alta</option>
+      <option value="melhor">Melhor</option>
+    </select></div>
     <div class="form-row" id="ep_fvBox" style="display:none;max-width:140px">
       <label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin-top:9px;font-size:12.5px;color:var(--text-2);font-weight:500">
         <input type="checkbox" id="ep_frenteVerso" style="width:16px;height:16px;accent-color:var(--brand)" onchange="atualizaFvInfo()">
@@ -2784,22 +2822,32 @@ function updateEqUnit(){
   const lbl=document.getElementById('ep_unitLabel');
   const box2=document.getElementById('ep_qtd2box');
   const fvBox=document.getElementById('ep_fvBox');
+  const qualBox=document.getElementById('ep_qualBox');
   if(modo==='recorte'){
     lbl.textContent='Minutos de uso';
     if(box2)box2.style.display='block';
     if(fvBox)fvBox.style.display='none';
+    if(qualBox)qualBox.style.display='none';
   }else{
     lbl.textContent = modo==='tempo'?'Minutos':'Páginas';
     if(box2)box2.style.display='none';
     if(fvBox)fvBox.style.display=(modo==='pb'||modo==='cor')?'block':'none';
+    if(qualBox)qualBox.style.display=(modo==='pb'||modo==='cor')?'block':'none';
   }
   const cb=document.getElementById('ep_frenteVerso'); if(cb)cb.checked=false;
+  const qs=document.getElementById('ep_qualidade'); if(qs)qs.value='normal';
   atualizaFvInfo();
 }
+const QUALIDADE_PCT={economia:0.7,normal:1,alta:1.4,melhor:1.8};
+const QUALIDADE_LABEL={economia:'economia',normal:'',alta:'alta qualidade',melhor:'melhor qualidade'};
 function atualizaFvInfo(){
   const info=document.getElementById('ep_fvInfo');if(!info)return;
   const cb=document.getElementById('ep_frenteVerso');
-  info.textContent=(cb&&cb.checked)?'Vai contar tinta e desgaste dos dois lados (o dobro de páginas), mas o papel continua sendo cobrado 1x no passo de materiais.':'';
+  const qs=document.getElementById('ep_qualidade');
+  const partes=[];
+  if(cb&&cb.checked)partes.push('conta tinta e desgaste dos dois lados (o dobro de páginas)');
+  if(qs&&qs.value!=='normal')partes.push('qualidade "'+QUALIDADE_LABEL[qs.value]+'" ajusta o gasto de tinta');
+  info.textContent=partes.length?('⚠ '+partes.join('; ')+'. O papel continua sendo cobrado 1x no passo de materiais.'):'';
 }
 async function addEqItem(){
   const id=document.getElementById('ep_sel').value;
@@ -2819,12 +2867,22 @@ async function addEqItem(){
       const frenteVerso=document.getElementById('ep_frenteVerso')?.checked;
       item.paginas=frenteVerso?qtd*2:qtd;
       item.frenteVerso=!!frenteVerso;
+      // ajusta o custo de tinta pela qualidade escolhida (economia gasta menos, alta/melhor gastam mais)
+      const qualidade=document.getElementById('ep_qualidade')?.value||'normal';
+      if(qualidade!=='normal'){
+        const tabela={economia:e.qualEconomiaPct||70,alta:e.qualAltaPct||140,melhor:e.qualMelhorPct||180};
+        const fator=(tabela[qualidade]||100)/100;
+        item.custoPB=e.custoPB*fator;
+        item.custoCor=e.custoCor*fator;
+      }
+      item.qualidade=qualidade;
     }
   }
   orc.equipamentos.push(item);
   document.getElementById('ep_qtd').value='';
   const q2=document.getElementById('ep_qtd2');if(q2)q2.value='';
   const cb=document.getElementById('ep_frenteVerso');if(cb)cb.checked=false;
+  const qs=document.getElementById('ep_qualidade');if(qs)qs.value='normal';
   atualizaFvInfo();
   drawEqSel();refreshSummary();
 }
@@ -2834,14 +2892,14 @@ function drawEqSel(){
   box.innerHTML=orc.equipamentos.map((e,i)=>{
     let sub=0,detail='';
     if(e.tipo==='tempo'){sub=e.deprecHora*(e.minutos/60);detail=`${e.minutos} min × ${fmt6(e.deprecHora)}/h (depreciação)`;}
-    else if(e.tipo==='pb'){sub=e.custoPB*e.paginas;detail=`${e.paginas} pág. P&B × ${fmt6(e.custoPB)}${e.frenteVerso?' (frente e verso)':''}`;}
+    else if(e.tipo==='pb'){sub=e.custoPB*e.paginas;detail=`${e.paginas} pág. P&B × ${fmt6(e.custoPB)}${e.frenteVerso?' (frente e verso)':''}${e.qualidade&&e.qualidade!=='normal'?' ('+QUALIDADE_LABEL[e.qualidade]+')':''}`;}
     else if(e.tipo==='recorte'){
       const cLamina=(e.custoLaminaHora||0)*((e.minutos||0)/60);
       const cBase=(e.custoBaseFolha||0)*(e.folhas||0);
       sub=cLamina+cBase;
       detail=`${e.minutos||0} min consumível 1 + ${e.folhas||0} folhas/peças consumível 2`;
     }
-    else{sub=e.custoCor*e.paginas;detail=`${e.paginas} pág. cor × ${fmt6(e.custoCor)}${e.frenteVerso?' (frente e verso)':''}`;}
+    else{sub=e.custoCor*e.paginas;detail=`${e.paginas} pág. cor × ${fmt6(e.custoCor)}${e.frenteVerso?' (frente e verso)':''}${e.qualidade&&e.qualidade!=='normal'?' ('+QUALIDADE_LABEL[e.qualidade]+')':''}`;}
     return `<div class="sel-item">
       <div class="si-info"><div class="si-name">${esc(e.nome)}</div><div class="si-detail">${detail}</div></div>
       <div class="si-val">${fmt(sub)}</div>
