@@ -2152,10 +2152,14 @@ function drawOrcProdList(){
   }
   box.innerHTML=`<div class="tbl-scroll"><table>
     <thead><tr><th>Produto</th><th>Tipo</th><th class="t-right">Qtd</th><th class="t-right">Unitário</th><th class="t-right">Total</th><th class="t-right">Ações</th></tr></thead>
-    <tbody>${orcAtual.produtos.map((p,i)=>`
+    <tbody>${orcAtual.produtos.map((p,i)=>{
+      const r=p.receita||{};
+      const nome=r.descricao||p.desc||'Sem nome';
+      const modo=r.modo||p.modo||'avancado';
+      return `
       <tr>
-        <td><div class="t-main">${esc(p.receita.descricao||'Sem nome')}</div></td>
-        <td><span class="t-sub">${p.receita.modo==='terceirizado'?'Terceirizado':'Produção própria'}</span></td>
+        <td><div class="t-main">${esc(nome)}</div></td>
+        <td><span class="t-sub">${modo==='terceirizado'?'Terceirizado':'Produção própria'}</span></td>
         <td class="t-right">${p.qtd}</td>
         <td class="t-right">${fmt(p.precoUnit)}</td>
         <td class="t-right"><b>${fmt(p.precoUnit*p.qtd)}</b></td>
@@ -2163,7 +2167,7 @@ function drawOrcProdList(){
           <button class="act-btn" onclick="editProdutoModal(${i})" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
           <button class="act-btn danger" onclick="removeProduto(${i})" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
         </div></td>
-      </tr>`).join('')}</tbody></table></div>`;
+      </tr>`;}).join('')}</tbody></table></div>`;
 }
 
 function novoOrcamento(){
@@ -2205,10 +2209,25 @@ async function delOrc(id){
 async function editarOrcamento(id){
   const o=await dbGet('orders',id);
   if(!o)return;
-  // Converte para o formato de montagem
+  // Converte para o formato de montagem, recuperando produto a produto
+  // (tolera produtos salvos em formatos diferentes, sem descartar a lista inteira)
   let produtos=[];
-  if(o.produtos&&o.produtos.length&&o.produtos[0].receita){
-    produtos=JSON.parse(JSON.stringify(o.produtos));
+  if(o.produtos&&o.produtos.length){
+    produtos=o.produtos.map(p=>{
+      const copia=JSON.parse(JSON.stringify(p));
+      if(copia.receita&&typeof copia.receita==='object'){
+        // garante que o modo esteja presente (senão o formulário abre no tipo errado)
+        if(!copia.receita.modo){
+          copia.receita.modo=(copia.modo)||((copia.receita.custoSite>0||copia.receita.lucroFixo>0||copia.receita.lucroPercentual>0)?'terceirizado':'avancado');
+        }
+        if(!copia.receita.descricao)copia.receita.descricao=copia.desc||'Produto';
+        return {receita:copia.receita,qtd:copia.qtd||1,precoUnit:copia.precoUnit||0};
+      }
+      // produto sem receita completa: reconstrói o máximo possível em vez de sumir
+      const modoInferido=(copia.modo)||((copia.custoSite>0||copia.lucroFixo>0)?'terceirizado':'avancado');
+      const receita={...novoOrc(),...copia,modo:modoInferido,descricao:copia.desc||copia.descricao||'Produto'};
+      return {receita,qtd:copia.qtd||1,precoUnit:copia.precoUnit||0};
+    });
   }else{
     // orçamento antigo (1 produto): reconstrói a partir dos campos
     produtos=[{receita:JSON.parse(JSON.stringify(o)),qtd:1,precoUnit:o.precoFinal||0}];
@@ -2299,8 +2318,10 @@ function salvarProdutoNoOrc(){
   const qtd=orc.cestaQtd&&orc.cestaQtd>0?orc.cestaQtd:1;
   const precoEfetivo=orc.precoManual>0?orc.precoManual:c.precoFinal;
   const receita=JSON.parse(JSON.stringify(orc));
-  receita.modo=priceMode;
-  const item={receita,qtd,precoUnit:precoEfetivo};
+  receita.modo=priceMode||orc.modo||'avancado';
+  // guarda modo e descrição também no item (redundância proposital:
+  // se a receita se perder por qualquer motivo, o produto ainda é recuperável)
+  const item={receita,qtd,precoUnit:precoEfetivo,modo:receita.modo,desc:orc.descricao};
   if(editandoProdIdx!==null){
     orcAtual.produtos[editandoProdIdx]=item;
   }else{
