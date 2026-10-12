@@ -1427,8 +1427,9 @@ async function delContact(id,nome){
    FICHA DO CLIENTE: anotações manuais de vendas/serviços
    (store 'clientEntries': {id, clienteId, data, desc, valor, pago})
    ============================================================ */
-let _fichaCli=null;
+let _fichaCli=null, _fichaSel=null, _fichaEntries=[], _fichaMostrarSit=true;
 async function abrirFicha(clienteId){
+  _fichaSel=null;
   _fichaCli=await dbGet('clients',clienteId);
   if(!_fichaCli){toast('Cliente não encontrado');return;}
   await desenharFicha();
@@ -1437,6 +1438,9 @@ async function desenharFicha(editId){
   const c=_fichaCli;
   const todas=(await dbAll('clientEntries')).filter(e=>e.clienteId===c.id);
   todas.sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  _fichaEntries=todas;
+  if(_fichaSel===null)_fichaSel=new Set(todas.map(e=>e.id));
+  else{const ids=new Set(todas.map(e=>e.id));_fichaSel=new Set([..._fichaSel].filter(i=>ids.has(i)));}
   const total=todas.reduce((t,e)=>t+(+e.valor||0),0);
   const pendente=todas.filter(e=>!e.pago).reduce((t,e)=>t+(+e.valor||0),0);
   const ed=editId?todas.find(e=>e.id===editId):null;
@@ -1465,9 +1469,20 @@ async function desenharFicha(editId){
           <button class="btn-save" onclick="salvarEntradaFicha()">${ed?'Salvar alteração':'Adicionar'}</button>
         </div>
       </div>
+      ${todas.length?`<div style="border:1px solid var(--border-strong);border-radius:12px;padding:12px;margin-bottom:14px">
+        <div style="font-weight:600;margin-bottom:2px">Exportar relatório</div>
+        <div style="font-size:12.5px;color:var(--text-3);margin-bottom:8px">Marque na lista abaixo o que deve aparecer no relatório.</div>
+        <div id="fichaResumo" style="font-weight:600;margin-bottom:8px"></div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:10px;font-size:13.5px"><input type="checkbox" id="f_mostrarSit" ${_fichaMostrarSit?'checked':''} onchange="_fichaMostrarSit=this.checked"> Mostrar se está pago ou pendente</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-save" onclick="exportarFichaPNG()">Baixar imagem (1080x1920)</button>
+          <button class="btn-save" style="background:var(--text);" onclick="exportarFichaPDF()">Baixar PDF (A4)</button>
+        </div>
+      </div>`:''}
       ${todas.length?`<div class="tbl-wrap"><div class="tbl-scroll"><table>
-        <thead><tr><th>Data</th><th>Descrição</th><th class="t-right">Valor</th><th>Pago</th><th class="t-right"></th></tr></thead>
+        <thead><tr><th style="width:34px"><input type="checkbox" id="f_todos" onchange="fichaToggleTodos(this.checked)" title="Marcar todas"></th><th>Data</th><th>Descrição</th><th class="t-right">Valor</th><th>Pago</th><th class="t-right"></th></tr></thead>
         <tbody>${todas.map(e=>`<tr>
+          <td><input type="checkbox" class="f_sel" ${_fichaSel.has(e.id)?'checked':''} onchange="fichaToggleSel('${e.id}')" title="Incluir no relatório"></td>
           <td>${e.data?e.data.split('-').reverse().join('/'):'—'}</td>
           <td>${esc(e.desc)}</td>
           <td class="t-right">${fmt(e.valor)}</td>
@@ -1479,6 +1494,7 @@ async function desenharFicha(editId){
       :`<div style="text-align:center;color:var(--text-3);padding:14px">Nenhuma anotação ainda. Adicione a primeira acima.</div>`}
     </div>
     <div class="modal-foot"><button class="btn-ghost" onclick="closeModal()">Fechar</button></div>`);
+  fichaAtualizaResumo();
   setTimeout(()=>{const e=document.getElementById('f_desc');if(e)e.focus();},100);
 }
 async function salvarEntradaFicha(){
@@ -1486,6 +1502,7 @@ async function salvarEntradaFicha(){
   if(!desc){toast('Descreva o que foi vendido');return;}
   if(isNaN(valor)||valor<0){toast('Informe o valor');return;}
   const id=val('f_id')||uid();
+  if(!val('f_id')&&_fichaSel)_fichaSel.add(id);
   await dbPut('clientEntries',{id,clienteId:_fichaCli.id,desc,valor,data:val('f_data'),pago:document.getElementById('f_pago').checked});
   toast('Anotação salva');desenharFicha();
 }
@@ -1496,6 +1513,262 @@ async function alternarPagoFicha(id){
 async function excluirEntradaFicha(id){
   if(!confirm('Excluir esta anotação?'))return;
   await dbDel('clientEntries',id);toast('Excluída');desenharFicha();
+}
+
+
+/* ---------- Exportar relatório da ficha (PNG 1080x1920 e PDF A4) ---------- */
+function fichaToggleSel(id){
+  if(_fichaSel.has(id))_fichaSel.delete(id);else _fichaSel.add(id);
+  fichaAtualizaResumo();
+}
+function fichaToggleTodos(on){
+  _fichaSel=on?new Set(_fichaEntries.map(e=>e.id)):new Set();
+  document.querySelectorAll('.f_sel').forEach(c=>c.checked=on);
+  fichaAtualizaResumo();
+}
+function fichaAtualizaResumo(){
+  const sel=_fichaEntries.filter(e=>_fichaSel.has(e.id));
+  const t=sel.reduce((a,e)=>a+(+e.valor||0),0);
+  const el=document.getElementById('fichaResumo');
+  if(el)el.textContent=sel.length?`${sel.length} selecionada${sel.length>1?'s':''} • Total ${fmt(t)}`:'Nenhuma anotação selecionada';
+  const all=document.getElementById('f_todos');
+  if(all){all.checked=sel.length>0&&sel.length===_fichaEntries.length;all.indeterminate=sel.length>0&&sel.length<_fichaEntries.length;}
+}
+function fichaDadosExport(){
+  const itens=_fichaEntries.filter(e=>_fichaSel.has(e.id)).slice().sort((a,b)=>(a.data||'').localeCompare(b.data||''));
+  if(!itens.length){toast('Marque pelo menos uma anotação');return null;}
+  const total=itens.reduce((a,e)=>a+(+e.valor||0),0);
+  const pago=itens.filter(e=>e.pago).reduce((a,e)=>a+(+e.valor||0),0);
+  return {c:_fichaCli,itens,total,pago,pendente:total-pago,sit:_fichaMostrarSit,e:CONFIG.empresa||{}};
+}
+function fichaNomeArquivo(d,ext,sufixo){
+  const prim=(d.c.nome||'cliente').trim().split(/\s+/)[0].normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]/g,'');
+  return `Nota-${prim}-${new Date().toISOString().slice(0,10)}${sufixo||''}.${ext}`;
+}
+function fichaDataBR(d){return d?d.split('-').reverse().join('/'):'';}
+
+function fichaCarregarImg(src){
+  return new Promise(res=>{if(!src)return res(null);const i=new Image();i.onload=()=>res(i);i.onerror=()=>res(null);i.src=src;});
+}
+function fichaRoundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+}
+function fichaWrap(ctx,text,maxW,maxLines){
+  const words=String(text||'').split(/\s+/);const lines=[];let cur='';
+  for(const w of words){
+    const t=cur?cur+' '+w:w;
+    if(ctx.measureText(t).width<=maxW||!cur)cur=t;else{lines.push(cur);cur=w;}
+  }
+  if(cur)lines.push(cur);
+  if(lines.length>maxLines){lines.length=maxLines;let l=lines[maxLines-1];while(l.length>1&&ctx.measureText(l+'…').width>maxW)l=l.slice(0,-1);lines[maxLines-1]=l+'…';}
+  return lines;
+}
+
+async function exportarFichaPNG(){
+  const d=fichaDadosExport();if(!d)return;
+  toast('Gerando imagem...');
+  try{ if(document.fonts&&document.fonts.ready)await document.fonts.ready; }catch(_){}
+  const W=1080,H=1920,PAD=64,FONT="Inter, 'Segoe UI', -apple-system, Arial, sans-serif";
+  const ROXO='#6600FF', PRETO='#17171C', CINZA='#8A8A95';
+  const logo=await fichaCarregarImg(d.e.logo);
+  const mc=document.createElement('canvas').getContext('2d');
+  // --- medir cartões ---
+  const CARD_W=W-2*PAD, VALW=270;
+  mc.font=`700 34px ${FONT}`;
+  const cards=d.itens.map(it=>{
+    const lines=fichaWrap(mc,it.desc,CARD_W-48-VALW,3);
+    return {it,lines,h:34+lines.length*44+8+34+30};
+  });
+  const GAP=16, LIM=H-120;
+  const TOT_H=d.sit?330:200;
+  const START1=690, START2=250;
+  const pages=[[]];let y=START1;
+  cards.forEach(cd=>{
+    if(y+cd.h>LIM&&pages[pages.length-1].length){pages.push([]);y=START2;}
+    pages[pages.length-1].push(cd);y+=cd.h+GAP;
+  });
+  if(y+TOT_H>LIM){pages.push([]);}
+  const baixados=[];
+  for(let pi=0;pi<pages.length;pi++){
+    const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+    const ctx=cv.getContext('2d');
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+    ctx.textBaseline='alphabetic';
+    const grad=(x,y,w,h)=>{const g=ctx.createLinearGradient(x,0,x+w,0);g.addColorStop(0,ROXO);g.addColorStop(1,PRETO);return g;};
+    let cy;
+    if(pi===0){
+      ctx.fillStyle=grad(0,0,W,420);ctx.fillRect(0,0,W,420);
+      ctx.fillStyle='#fff';ctx.font=`700 28px ${FONT}`;
+      if(ctx.letterSpacing!==undefined)ctx.letterSpacing='3px';
+      ctx.fillText((d.e.nome||'Mais Print').toUpperCase(),PAD,100);
+      if(ctx.letterSpacing!==undefined)ctx.letterSpacing='0px';
+      ctx.font=`800 100px ${FONT}`;ctx.fillText('Nota do cliente',PAD-4,262);
+      ctx.fillStyle='#D8C8FF';ctx.font=`500 30px ${FONT}`;
+      ctx.fillText('Emitida em '+new Date().toLocaleDateString('pt-BR'),PAD,330);
+      // logo
+      ctx.fillStyle='#fff';fichaRoundRect(ctx,W-PAD-280,56,280,130,20);ctx.fill();
+      if(logo){const r=Math.min(250/logo.width,100/logo.height);const lw=logo.width*r,lh=logo.height*r;ctx.drawImage(logo,W-PAD-280+(280-lw)/2,56+(130-lh)/2,lw,lh);}
+      // cliente
+      ctx.fillStyle=ROXO;fichaRoundRect(ctx,PAD,470,50,130,20);ctx.fill();
+      ctx.fillStyle='#F2F1F6';fichaRoundRect(ctx,PAD+30,470,CARD_W-30,130,24);ctx.fill();
+      ctx.fillStyle=CINZA;ctx.font=`700 24px ${FONT}`;ctx.fillText('CLIENTE',PAD+70,520);
+      ctx.fillStyle=PRETO;ctx.font=`800 46px ${FONT}`;
+      let nm=d.c.nome||'—';while(nm.length>1&&ctx.measureText(nm).width>CARD_W-110)nm=nm.slice(0,-1);
+      ctx.fillText(nm,PAD+70,572);
+      cy=START1;
+      // pílula
+      ctx.fillStyle=ROXO;fichaRoundRect(ctx,PAD,cy-40,330,46,23);ctx.fill();
+      ctx.fillStyle='#fff';ctx.font=`700 22px ${FONT}`;ctx.fillText('SERVIÇOS E PRODUTOS',PAD+28,cy-9);
+      cy=START1+22;
+    }else{
+      ctx.fillStyle=grad(0,0,W,170);ctx.fillRect(0,0,W,170);
+      ctx.fillStyle='#fff';ctx.font=`800 46px ${FONT}`;ctx.fillText('Nota do cliente',PAD,92);
+      ctx.fillStyle='#D8C8FF';ctx.font=`500 26px ${FONT}`;
+      let nm=d.c.nome||'';while(nm.length>1&&ctx.measureText(nm).width>CARD_W-200)nm=nm.slice(0,-1);
+      ctx.fillText(nm,PAD,134);
+      ctx.textAlign='right';ctx.fillText(`Página ${pi+1} de ${pages.length}`,W-PAD,134);ctx.textAlign='left';
+      cy=START2-30;
+    }
+    // cartões
+    pages[pi].forEach((cd,i)=>{
+      ctx.fillStyle=i%2?'#fff':'#F5F4F8';
+      fichaRoundRect(ctx,PAD,cy,CARD_W,cd.h,22);ctx.fill();
+      ctx.strokeStyle='#ECECEF';ctx.lineWidth=2;fichaRoundRect(ctx,PAD,cy,CARD_W,cd.h,22);ctx.stroke();
+      ctx.fillStyle=PRETO;ctx.font=`700 34px ${FONT}`;
+      let ty=cy+34+30;
+      cd.lines.forEach(l=>{ctx.fillText(l,PAD+24,ty);ty+=44;});
+      ctx.fillStyle=CINZA;ctx.font=`500 26px ${FONT}`;
+      let sub=fichaDataBR(cd.it.data);
+      ctx.fillText(sub,PAD+24,cy+cd.h-24);
+      if(d.sit){
+        const lbl=cd.it.pago?'PAGO':'PENDENTE';ctx.font=`700 20px ${FONT}`;
+        const bw=ctx.measureText(lbl).width+28, bx=PAD+24+(sub?ctx.measureText(sub).width+0:0);
+        ctx.font=`500 26px ${FONT}`;const sx=PAD+24+ctx.measureText(sub).width+18;
+        ctx.fillStyle=cd.it.pago?'#DFF7E6':'#FFE9D6';fichaRoundRect(ctx,sx,cy+cd.h-52,bw,34,17);ctx.fill();
+        ctx.fillStyle=cd.it.pago?'#17803D':'#C2410C';ctx.font=`700 20px ${FONT}`;ctx.fillText(lbl,sx+14,cy+cd.h-28);
+      }
+      ctx.fillStyle=PRETO;ctx.font=`800 38px ${FONT}`;ctx.textAlign='right';
+      ctx.fillText(fmt(cd.it.valor),W-PAD-24,cy+34+30);ctx.textAlign='left';
+      cy+=cd.h+GAP;
+    });
+    // total (última página)
+    if(pi===pages.length-1){
+      const ty=Math.max(cy+14,0);
+      ctx.fillStyle=grad(PAD,ty,CARD_W,TOT_H);fichaRoundRect(ctx,PAD,ty,CARD_W,TOT_H,30);ctx.fill();
+      ctx.fillStyle='#C9BFFF';ctx.font=`700 26px ${FONT}`;ctx.fillText('TOTAL',PAD+44,ty+58);
+      ctx.fillStyle='#fff';ctx.font=`800 88px ${FONT}`;ctx.fillText(fmt(d.total),PAD+44,ty+150);
+      if(d.sit){
+        ctx.font=`600 30px ${FONT}`;
+        ctx.fillStyle='#9CE8B4';ctx.fillText('Já pago: '+fmt(d.pago),PAD+44,ty+218);
+        ctx.fillStyle='#FFC9A3';ctx.fillText('A pagar: '+fmt(d.pendente),PAD+44,ty+268);
+      }
+      // contatos
+      const ct=[d.e.whatsapp,d.e.instagram,d.e.pix?('Pix: '+d.e.pix):''].filter(Boolean).join('   •   ');
+      if(ct){ctx.fillStyle=CINZA;ctx.font=`500 26px ${FONT}`;ctx.textAlign='center';
+        let t=ct;while(t.length>1&&ctx.measureText(t).width>CARD_W)t=t.slice(0,-1);
+        ctx.fillText(t,W/2,H-60);ctx.textAlign='left';}
+    }
+    const blob=await new Promise(r=>cv.toBlob(r,'image/png'));
+    baixados.push({blob,nome:fichaNomeArquivo(d,'png',pages.length>1?'-'+(pi+1):'')});
+  }
+  for(const b of baixados){
+    const a=document.createElement('a');a.href=URL.createObjectURL(b.blob);a.download=b.nome;
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    await new Promise(r=>setTimeout(r,500));
+  }
+  toast(baixados.length>1?`${baixados.length} imagens geradas`:'Imagem gerada');
+}
+
+async function exportarFichaPDF(){
+  const d=fichaDadosExport();if(!d)return;
+  if(!window.jspdf){toast('Conecte-se à internet para gerar o PDF');return;}
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF({unit:'pt',format:'a4'});
+  const W=595.28,H=841.89,e=d.e;
+  const ROXO=[102,0,255],PRETO=[23,23,28],CINZA=[138,138,149],ZEBRA=[245,244,248];
+  function gradH(x,y,w,h,c1,c2,steps){steps=steps||80;
+    for(let i=0;i<steps;i++){const t=i/steps;
+      doc.setFillColor(Math.round(c1[0]+(c2[0]-c1[0])*t),Math.round(c1[1]+(c2[1]-c1[1])*t),Math.round(c1[2]+(c2[2]-c1[2])*t));
+      doc.rect(x+i*(w/steps),y,w/steps+0.6,h,'F');}}
+  function img(dataurl,x,y,maxw,maxh){
+    if(!dataurl)return false;
+    try{const f=dataurl.indexOf('image/png')>=0?'PNG':'JPEG';const p=doc.getImageProperties(dataurl);
+      const ratio=p.width/p.height;let w=maxw,h=maxw/ratio;if(h>maxh){h=maxh;w=maxh*ratio;}
+      doc.addImage(dataurl,f,x+(maxw-w)/2,y+(maxh-h)/2,w,h);return true;}catch(err){return false;}}
+  const hoje=new Date().toLocaleDateString('pt-BR');
+  // topo
+  gradH(0,0,W,130,ROXO,PRETO);
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(11);
+  doc.text((e.nome||'Mais Print').toUpperCase(),40,42,{charSpace:1});
+  doc.setFontSize(36);doc.text('Nota do cliente',38,92,{charSpace:-0.5});
+  doc.setTextColor(216,200,255);doc.setFont('helvetica','normal');doc.setFontSize(8.5);
+  doc.text('Emitida em '+hoje,40,110);
+  doc.setFillColor(255,255,255);doc.roundedRect(W-150,38,110,52,6,6,'F');
+  img(e.logo,W-145,43,100,42);
+  // cliente
+  let by=160;
+  doc.setFillColor(...ROXO);doc.roundedRect(40,by,18,56,6,6,'F');
+  doc.setFillColor(242,241,246);doc.roundedRect(50,by,W-90,56,8,8,'F');
+  doc.setTextColor(...CINZA);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text('CLIENTE',70,by+18);
+  doc.setTextColor(...PRETO);doc.setFontSize(14);doc.text(d.c.nome||'—',70,by+40);
+  // pílula
+  let y=by+82;
+  doc.setFillColor(...ROXO);doc.roundedRect(40,y,170,24,12,12,'F');
+  doc.setTextColor(255,255,255);doc.setFontSize(9.5);doc.text('SERVIÇOS E PRODUTOS',52,y+16);
+  y+=38;
+  const COL_DATA=48, COL_DESC=118, COL_SIT=d.sit?400:0, COL_VAL=W-48;
+  const descW=(d.sit?COL_SIT-40:COL_VAL-90)-COL_DESC;
+  function cab(){
+    doc.setFillColor(...PRETO);doc.roundedRect(40,y,W-80,26,6,6,'F');
+    doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9);
+    doc.text('DATA',COL_DATA,y+17);doc.text('DESCRIÇÃO',COL_DESC,y+17);
+    if(d.sit)doc.text('SITUAÇÃO',COL_SIT,y+17);
+    doc.text('VALOR',COL_VAL,y+17,{align:'right'});
+    y+=32;
+  }
+  cab();
+  const RESERVA=d.sit?150:110;
+  d.itens.forEach((it,i)=>{
+    doc.setFont('helvetica','normal');doc.setFontSize(10);
+    const linhas=doc.splitTextToSize(it.desc||'',descW);
+    const rh=Math.max(30,linhas.length*13+16);
+    if(y+rh>H-60){doc.addPage();y=50;cab();}
+    if(i%2===0){doc.setFillColor(...ZEBRA);doc.roundedRect(40,y-4,W-80,rh,6,6,'F');}
+    doc.setFont('helvetica','normal');
+    doc.setTextColor(...CINZA);doc.setFontSize(9);doc.text(fichaDataBR(it.data)||'—',COL_DATA,y+14);
+    doc.setTextColor(...PRETO);doc.setFontSize(10);doc.text(linhas,COL_DESC,y+14);
+    if(d.sit){
+      doc.setFont('helvetica','bold');doc.setFontSize(8.5);
+      if(it.pago)doc.setTextColor(23,128,61);else doc.setTextColor(194,65,12);
+      doc.text(it.pago?'PAGO':'PENDENTE',COL_SIT,y+14);
+    }
+    doc.setTextColor(...PRETO);doc.setFont('helvetica','bold');doc.setFontSize(10.5);
+    doc.text(fmt(it.valor),COL_VAL,y+14,{align:'right'});
+    y+=rh+2;
+  });
+  // total
+  const TH=d.sit?110:70;
+  if(y+TH+20>H-50){doc.addPage();y=50;}
+  y+=14;
+  gradH(40,y,W-80,TH,ROXO,PRETO);
+  doc.setTextColor(201,191,255);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text('TOTAL',58,y+22);
+  doc.setTextColor(255,255,255);doc.setFontSize(26);doc.text(fmt(d.total),58,y+54);
+  if(d.sit){
+    doc.setFontSize(10);
+    doc.setTextColor(156,232,180);doc.text('Já pago: '+fmt(d.pago),58,y+80);
+    doc.setTextColor(255,201,163);doc.text('A pagar: '+fmt(d.pendente),58,y+96);
+  }
+  // rodapé
+  const ct=[e.whatsapp,e.instagram,e.pix?('Pix: '+e.pix):''].filter(Boolean).join('   •   ');
+  const np=doc.getNumberOfPages();
+  for(let p=1;p<=np;p++){
+    doc.setPage(p);doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...CINZA);
+    if(p===np&&ct)doc.text(ct,W/2,H-30,{align:'center'});
+    if(np>1)doc.text(`Página ${p} de ${np}`,W-40,H-30,{align:'right'});
+  }
+  doc.save(fichaNomeArquivo(d,'pdf'));
+  toast('PDF gerado');
 }
 
 /* ============================================================
