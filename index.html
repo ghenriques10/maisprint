@@ -1373,6 +1373,7 @@ async function drawContacts(){
         <td>${esc(c.doc)||'<span style="color:var(--text-3)">—</span>'}</td>
         <td>${esc(c.email)||'<span style="color:var(--text-3)">—</span>'}</td>
         <td><div class="t-actions">
+          ${cliSub==='clients'?`<button class="act-btn" onclick="abrirFicha('${c.id}')" title="Ficha do cliente (vendas anotadas)"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>`:''}
           <button class="act-btn" onclick="openContactModal('${c.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
           <button class="act-btn danger" onclick="delContact('${c.id}','${esc(c.nome)}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
         </div></td>
@@ -1419,6 +1420,82 @@ async function delContact(id,nome){
   const store=cliSub==='clients'?'clients':'suppliers';
   await dbDel(store,id);
   toast('Excluído');drawContacts();
+}
+
+
+/* ============================================================
+   FICHA DO CLIENTE: anotações manuais de vendas/serviços
+   (store 'clientEntries': {id, clienteId, data, desc, valor, pago})
+   ============================================================ */
+let _fichaCli=null;
+async function abrirFicha(clienteId){
+  _fichaCli=await dbGet('clients',clienteId);
+  if(!_fichaCli){toast('Cliente não encontrado');return;}
+  await desenharFicha();
+}
+async function desenharFicha(editId){
+  const c=_fichaCli;
+  const todas=(await dbAll('clientEntries')).filter(e=>e.clienteId===c.id);
+  todas.sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const total=todas.reduce((t,e)=>t+(+e.valor||0),0);
+  const pendente=todas.filter(e=>!e.pago).reduce((t,e)=>t+(+e.valor||0),0);
+  const ed=editId?todas.find(e=>e.id===editId):null;
+  const hoje=new Date().toISOString().slice(0,10);
+  openModal(`
+    <div class="modal-head">
+      <h3>Ficha de ${esc(c.nome)}</h3>
+      <button class="close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+        <div style="flex:1;min-width:130px;background:var(--surface-3);border-radius:10px;padding:10px 12px"><div style="font-size:12px;color:var(--text-3)">Total vendido</div><div style="font-weight:700;font-size:17px">${fmt(total)}</div></div>
+        <div style="flex:1;min-width:130px;background:var(--surface-3);border-radius:10px;padding:10px 12px"><div style="font-size:12px;color:var(--text-3)">Falta receber</div><div style="font-weight:700;font-size:17px;color:${pendente>0?'#c2410c':'inherit'}">${fmt(pendente)}</div></div>
+      </div>
+      <div style="border:1px solid var(--border-strong);border-radius:12px;padding:12px;margin-bottom:14px">
+        <div style="font-weight:600;margin-bottom:8px">${ed?'Editar anotação':'Nova anotação'}</div>
+        <input type="hidden" id="f_id" value="${ed?esc(ed.id):''}">
+        <div class="form-grid">
+          <div class="form-row" style="grid-column:1/-1"><label>O que foi vendido / feito *</label><input class="inp" id="f_desc" value="${ed?esc(ed.desc):''}" placeholder="Ex: 50 cartões de visita, arte de logo..."></div>
+          <div class="form-row"><label>Valor (R$) *</label><input class="inp" id="f_valor" type="number" step="0.01" min="0" value="${ed?ed.valor:''}" placeholder="0,00"></div>
+          <div class="form-row"><label>Data</label><input class="inp" id="f_data" type="date" value="${ed?esc(ed.data):hoje}"></div>
+          <div class="form-row" style="grid-column:1/-1"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="f_pago" ${ed&&ed.pago?'checked':''}> Já foi pago</label></div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          ${ed?`<button class="btn-ghost" onclick="desenharFicha()">Cancelar edição</button>`:''}
+          <button class="btn-save" onclick="salvarEntradaFicha()">${ed?'Salvar alteração':'Adicionar'}</button>
+        </div>
+      </div>
+      ${todas.length?`<div class="tbl-wrap"><div class="tbl-scroll"><table>
+        <thead><tr><th>Data</th><th>Descrição</th><th class="t-right">Valor</th><th>Pago</th><th class="t-right"></th></tr></thead>
+        <tbody>${todas.map(e=>`<tr>
+          <td>${e.data?e.data.split('-').reverse().join('/'):'—'}</td>
+          <td>${esc(e.desc)}</td>
+          <td class="t-right">${fmt(e.valor)}</td>
+          <td><input type="checkbox" ${e.pago?'checked':''} onchange="alternarPagoFicha('${e.id}')" title="Marcar como pago"></td>
+          <td><div class="t-actions">
+            <button class="act-btn" onclick="desenharFicha('${e.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="act-btn danger" onclick="excluirEntradaFicha('${e.id}')" title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+          </div></td></tr>`).join('')}</tbody></table></div></div>`
+      :`<div style="text-align:center;color:var(--text-3);padding:14px">Nenhuma anotação ainda. Adicione a primeira acima.</div>`}
+    </div>
+    <div class="modal-foot"><button class="btn-ghost" onclick="closeModal()">Fechar</button></div>`);
+  setTimeout(()=>{const e=document.getElementById('f_desc');if(e)e.focus();},100);
+}
+async function salvarEntradaFicha(){
+  const desc=val('f_desc'), valor=parseFloat(document.getElementById('f_valor').value);
+  if(!desc){toast('Descreva o que foi vendido');return;}
+  if(isNaN(valor)||valor<0){toast('Informe o valor');return;}
+  const id=val('f_id')||uid();
+  await dbPut('clientEntries',{id,clienteId:_fichaCli.id,desc,valor,data:val('f_data'),pago:document.getElementById('f_pago').checked});
+  toast('Anotação salva');desenharFicha();
+}
+async function alternarPagoFicha(id){
+  const e=await dbGet('clientEntries',id);if(!e)return;
+  e.pago=!e.pago;await dbPut('clientEntries',e);desenharFicha();
+}
+async function excluirEntradaFicha(id){
+  if(!confirm('Excluir esta anotação?'))return;
+  await dbDel('clientEntries',id);toast('Excluída');desenharFicha();
 }
 
 /* ============================================================
